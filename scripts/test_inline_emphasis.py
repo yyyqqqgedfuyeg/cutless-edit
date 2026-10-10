@@ -1,6 +1,6 @@
 import re
 from unittest import TestCase
-from inline_emphasis import emphasized_text, emphasis_map
+from inline_emphasis import emphasized_text, emphasis_map, script_emphasis
 
 
 class InlineEmphasisTests(TestCase):
@@ -35,3 +35,22 @@ class InlineEmphasisTests(TestCase):
         encoded,box=emphasized_text('选择北京\n也能上岸',[{'text':'北京','style':{'size_scale':1.5}}],40,self.layout)
         self.assertEqual(box[1],100)
         self.assertIn('\\N',encoded)
+
+
+    def test_script_marks_only_corresponding_repeated_phrase(self):
+        cues=[{'id':'a','text':'北京与北京都是示例'}]
+        spans=script_emphasis('北京与【北京】都是示例',cues)['a']
+        self.assertEqual(spans[0]['occurrence'],2)
+        encoded,_=emphasized_text(cues[0]['text'],spans,40,
+            {'font':'Noto Sans CJK SC','text_color':'#000000','bold':False})
+        self.assertIn('\\fs54.00',encoded)
+        self.assertIn('\\1c&H0000FFFF&',encoded)
+        self.assertNotIn('【',encoded)
+        self.assertEqual(re.sub(r'\{[^}]*\}','',encoded),cues[0]['text'])
+
+    def test_emphasis_can_continue_across_cues(self):
+        cues=[{'id':'a','text':'中国农业'},{'id':'b','text':'发展银行'}]
+        result=script_emphasis('【中国农业发展银行】',cues)
+        self.assertEqual(result['a'][0]['text'],'中国农业')
+        self.assertEqual(result['b'][0]['text'],'发展银行')
+        with self.assertRaises(ValueError):script_emphasis('【缺少结束',cues)

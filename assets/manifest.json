@@ -55,6 +55,11 @@
       "id": "char-grow",
       "path": "templates/char-grow.json",
       "origin": "项目原创参数模板"
+    },
+    {
+      "id": "expanded-point",
+      "path": "templates/expanded-point.json",
+      "origin": "按用户要求：逐项展开讲解，居中120%并同步强调音效"
     }
   ],
   "audio": [
@@ -75,6 +80,22 @@
       "path": "audio/soft-whoosh.wav",
       "origin": "本项目程序合成，无外部采样",
       "usage": "按重点事件显式添加，默认关闭"
+    },
+    {
+      "id": "ding-ding-ding",
+      "path": "audio/叮叮叮.mp3",
+      "origin": "用户提供并要求移动的本地素材",
+      "sha256": "623179be658bacf79f0d9dda40d100fd42084869368a952b78ba33af2338ca40",
+      "duration": 1.332208,
+      "usage": "仅逐项展开讲解的观点起点，与真实人声同步；不得用于一句话中的简单枚举；默认-24dB并自动避让人声"
+    },
+    {
+      "id": "swish",
+      "path": "audio/唰.mp3",
+      "origin": "用户提供并要求移动的本地素材",
+      "sha256": "c7fa1d0777ab3165661292c63ef7bbb7a2afb68b7c86b10609f2b516759d8687",
+      "duration": 0.548542,
+      "usage": "仅逐项展开讲解的观点起点，与真实人声同步；不得用于一句话中的简单枚举；默认-24dB并自动避让人声"
     }
   ],
   "bgm": [

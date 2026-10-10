@@ -5,9 +5,11 @@ import shutil
 import tempfile
 import wave
 
-from inline_emphasis import emphasized_text, emphasis_map
+from inline_emphasis import emphasized_text, emphasis_map, script_emphasis, single_line_layout
 
 from common import SKILL, check_ranges, digest, dimensions, ff, fingerprint, locked, probe, project, read, srt, stamp, write
+from point_effects import validate_points, zoom_expression, safe_sound_gain
+from emphasis_review import approved_emphasis
 from caption_review import cue_hash, promote, require_final, review_binding
 from visual_assets import asset_entry, bounce_tags, subtitle_animation, character_events, rounded_background
 
@@ -70,6 +72,10 @@ def subtitles(a):
     require_script(job/'script.txt');require_aliyun(job)
     profile=read(SKILL/f'assets/profiles/{p["layout"]}.json');fps=timeline['fps']
     layout={**profile['subtitle'],**(read(job/'subtitles/layout.json') if (job/'subtitles/layout.json').exists() else {})}
+    if layout.get('subtitle_policy')!='manuscript-single-line-v1':
+        layout['font_size_ratio']=profile['subtitle']['font_size_ratio']
+        layout['line_chars']=profile['subtitle']['line_chars']
+    layout['subtitle_policy']='manuscript-single-line-v1'
     for key,arg in [('bottom_y_ratio','bottom'),('font_size_ratio','font_size'),('font','font'),('line_chars','line_chars'),
                     ('text_color','text_color'),('outline_color','outline_color'),('outline_width','outline_width'),
                     ('shadow_color','shadow_color'),('shadow_depth','shadow_depth'),('bold','bold'),
@@ -79,7 +85,8 @@ def subtitles(a):
         if getattr(a,arg,None) is not None:layout[key]=getattr(a,arg)
     if getattr(a,'animated_cues',None) is not None:
         layout['animated_cues']=[x.strip() for x in a.animated_cues.split(',') if x.strip()]
-    if not .5<=layout['bottom_y_ratio']<=.96 or not .015<=layout['font_size_ratio']<=.09 or not 5<=layout['line_chars']<=40:
+    layout=single_line_layout(layout)
+    if not .5<=layout['bottom_y_ratio']<=.96 or not .015<=layout['font_size_ratio']<=.27 or not 5<=layout['line_chars']<=40:
         raise ValueError('字幕位置/字号/行长超出允许范围')
     if a.terms:layout['protected_phrases']=read(a.terms)
     captions_path=job/'subtitles/captions.json'
@@ -99,7 +106,14 @@ def subtitles(a):
                         'text':word['text'],'punctuation':word.get('punctuation','')})
                     break
         if not mapped:raise ValueError('锁定轨道中没有完整字词')
+        width,height=dimensions(p);size=round(width*layout['font_size_ratio'])
         cues=[];chunk=[]
+        original=(job/'script.txt').read_text(encoding='utf-8')
+        def fits(words):
+            candidate={'id':'candidate','text':''.join(w['text']+w['punctuation'] for w in words).rstrip('，。；')}
+            spans=script_emphasis(original,[candidate])['candidate']
+            box=emphasized_text(candidate['text'],spans,size,layout)[1]
+            return box[0]+2*layout.get('background_padding',12)<=width*.9
         def flush():
             if chunk:
                 cues.append({'id':f's{len(cues)+1:04}','start':chunk[0]['start'],
@@ -107,7 +121,7 @@ def subtitles(a):
                 chunk.clear()
         for w in mapped:
             length=sum(len(x['text'])+len(x['punctuation']) for x in chunk)
-            if chunk and (length+len(w['text'])>layout['line_chars']*2 or w['end']-chunk[0]['start']>5
+            if chunk and (not fits(chunk+[w]) or length+len(w['text'])+len(w['punctuation'])>layout['line_chars'] or w['end']-chunk[0]['start']>5
                     or w['start']-chunk[-1]['end']>.7):flush()
             chunk.append(w)
             if w['punctuation'] in {'。','！','？','；'}:flush()
@@ -131,15 +145,16 @@ def subtitles(a):
     for left,right in zip(cues,cues[1:]):
         if left['end']>right['start']+.0001:raise ValueError('字幕时间重叠或顺序错误')
     width,height=dimensions(p);size=round(width*layout['font_size_ratio'])
-    if getattr(a,'emphasis',None) is not None:layout['emphasis']=read(a.emphasis)
-    emphasis=emphasis_map(layout.get('emphasis',[]),cues)
+    emphasis=approved_emphasis(job)
+    if emphasis is None:emphasis=script_emphasis((job/'script.txt').read_text(encoding='utf-8'),cues)
+    layout['approved_emphasis']=emphasis
     lines=[];final=[]
     for cue in cues:
         spans=emphasis.get(cue['id'],[])
-        protected=layout.get('protected_phrases',[])+[span['text'] for span in spans]
-        text=wrap(cue['text'],layout['line_chars'],protected)
-        decorated,box=emphasized_text(text,spans,size,layout) if spans else (ass_text(text),None)
-        if box and box[0]>width*.9:raise ValueError('强调后字幕超出安全宽度，请缩小字号或重新断行')
+        text=cue['text'].replace('\r','').replace('\n','')
+        decorated,box=emphasized_text(text,spans,size,layout)
+        if box[0]+2*layout.get('background_padding',12)>width*.9:
+            raise ValueError(f'{cue["id"]} 单行字幕超出安全宽度，请按真实字词边界重新拆句')
         animation=subtitle_animation(layout,cue)
         lines.extend(rounded_background(text,cue['start'],cue['end'],width/2,
             round(height*layout['bottom_y_ratio']),size,layout,layout['font'],layout.get('bold',True),box_size=box))
@@ -176,18 +191,20 @@ def style(a):
     presets={x['id']:read(SKILL/'assets'/x['path']) for x in manifest['templates']}
     check_ranges(events,timeline['duration'])
     events=sorted(events,key=lambda e:e['start'])
+    validate_points(events,job,timeline,read(job/'asr/words.json')['words'])
     for i,event in enumerate(events):
         template=presets.get(event['template'])
         if not template:raise ValueError('未知特效模板')
         if i and events[i-1]['end']>event['start']:raise ValueError('重点效果不能重叠，避免同屏竞争')
         zoom=event.get('zoom',profile['emphasis_zoom'])
-        if not 1<=zoom<=1.08:raise ValueError('缩放必须在1.00至1.08之间')
+        if event['template']!='expanded-point' and not 1<=zoom<=1.08:
+            raise ValueError('普通缩放必须在1.00至1.08之间；逐项展开讲解固定1.20')
         max_chars=min(18,math.floor(.82/profile['emphasis_font_ratio']))
         if len(event.get('text',''))>max_chars:raise ValueError(f'当前画幅重点文案最多{max_chars}字，避免越界')
         event.update(zoom=zoom,template_parameters=template)
         if event.get('sound'):
             entry=asset_entry('audio',event['sound'])
-            target=job/'style'/('sfx-'+entry['id']+'.wav')
+            target=job/'style'/('sfx-'+entry['id']+Path(entry['path']).suffix)
             shutil.copy2(SKILL/'assets'/entry['path'],target)
             gain=event.get('sound_gain_db',-18)
             if not -40<=gain<=-6:raise ValueError('音效增益需在-40至-6dB')
@@ -209,35 +226,26 @@ def style(a):
     if not -40<=a.bgm_gain<=-6:raise ValueError('BGM增益范围 -40 到 -6 dB')
     width,height=dimensions(p);lines=[]
     font=read(job/'subtitles/layout.json')['font']
-    for event in events:
-        preset=event['template_parameters'];text=event.get('text','')
-        if not text:continue
-        x,y=round(width*preset.get('x_ratio',.5)),round(height*preset['y_ratio'])
-        effect_size=round(width*profile['emphasis_font_ratio'])
-        lines.extend(rounded_background(text,event['start'],event['end'],x,y+effect_size/2,
-            effect_size,{**preset,**event},font))
-        if preset['animation'] in {'char-bounce','char-grow'}:
-            lines.extend(character_events(text,event['start'],event['end'],x,y,
-                round(width*profile['emphasis_font_ratio']),preset['animation'],
-                event.get('stagger_ms',preset.get('stagger_ms',90)),
-                event.get('animation_ms',preset.get('animation_ms',300)),event.get('color',preset.get('color','#FFE082')),
-                font=font,jump_ratio=event.get('jump_ratio',.32),peak_scale=event.get('peak_scale',1.45)))
-            continue
-        tags=f'{{\\an{preset.get("alignment",5)}\\pos({x},{y})\\fad(100,100)'
-        if preset.get('color'):tags+=f'\\c{ass_color(preset["color"])}&'
-        if preset['animation']=='pop':tags+='\\fscx90\\fscy90\\t(0,160,\\fscx100\\fscy100)'
-        if preset['animation']=='bounce':tags+=bounce_tags(event['end']-event['start'],profile['subtitle']['bounce_strength'],profile['subtitle']['bounce_ms'])
-        if preset['animation']=='underline':tags+='\\u1'
-        if preset['animation']=='bracket':text='「'+text+'」'
-        if preset['animation']=='label':tags+='\\bord3\\shad0'
-        tags+='}'
-        lines.append(f'Dialogue: 1,{stamp(event["start"],True)},{stamp(event["end"],True)},Default,,0,0,0,,{tags}{ass_text(text)}')
-    font=read(job/'subtitles/layout.json')['font']
     (job/'style/overlay.ass').write_text(ass_header(width,height,font,round(width*profile['emphasis_font_ratio']),.3,'#FFDF66')+'\n'.join(lines)+'\n',encoding='utf-8')
     write(job/'style/style.json',{'lock_sha256':lock_hash,'events':events,'bgm':bgm,
         'grade':grade_name,'grade_parameters':grade_parameters})
     locked(job)
-    print(f'已生成 {len(events)} 个重点事件；缩放与花字共用时间段，原轨道未改动')
+    print(f'已生成 {len(events)} 个画面/声音事件；文字仅使用原稿标记的字幕强调')
+
+
+def video_filters(style_data,width,height,fps):
+    """Scale the picture first; burn subtitles at their unchanged output size."""
+    vf=[]
+    grade=style_data.get('grade_parameters',{})
+    if grade:
+        vf.append(f'eq=contrast={grade.get("contrast",1)}:saturation={grade.get("saturation",1)}:brightness={grade.get("brightness",0)}')
+        if 'red' in grade or 'blue' in grade:
+            vf.append(f'colorbalance=rm={grade.get("red",0)}:bm={grade.get("blue",0)}')
+    zoom=zoom_expression(style_data['events'],fps)
+    if style_data['events']:
+        vf.append(f"zoompan=z='{zoom}':x='iw/2-iw/zoom/2':y='ih/2-ih/zoom/2':d=1:s={width}x{height}:fps={fps}")
+    vf+=['ass=captions.ass','ass=overlay.ass']
+    return vf
 
 
 def render(a):
@@ -272,18 +280,7 @@ def render(a):
         (temp/'concat.txt').write_text('\n'.join(entries)+'\n',encoding='utf-8')
         shutil.copy2(job/'subtitles/final.ass',temp/'captions.ass')
         shutil.copy2(job/'style/overlay.ass',temp/'overlay.ass')
-        vf=[]
-        grade=style_data.get('grade_parameters',{})
-        if grade:
-            vf.append(f'eq=contrast={grade.get("contrast",1)}:saturation={grade.get("saturation",1)}:brightness={grade.get("brightness",0)}')
-            if 'red' in grade or 'blue' in grade:
-                vf.append(f'colorbalance=rm={grade.get("red",0)}:bm={grade.get("blue",0)}')
-        zoom='1'
-        for e in style_data['events']:
-            zoom+=f'+if(between(on/{fps},{e["start"]},{e["end"]}),{e["zoom"]-1}*sin(PI*(on/{fps}-{e["start"]})/{e["end"]-e["start"]}),0)'
-        if style_data['events']:
-            vf.append(f"zoompan=z='{zoom}':x='iw/2-iw/zoom/2':y='ih/2-ih/zoom/2':d=1:s={width}x{height}:fps={fps}")
-        vf+=['ass=captions.ass','ass=overlay.ass']
+        vf=video_filters(style_data,width,height,fps)
         args=['-f','concat','-safe','0','-i','concat.txt']
         if bgm:
             # Build a finite PCM bed before sidechain mixing. Older FFmpeg versions can
@@ -319,14 +316,31 @@ def render(a):
             args+=['-i',temp/'mixed.wav','-map','0:v:0','-map','1:a:0']
         elif not sounds:args+=['-map','0:v:0','-map','0:a:0','-af','alimiter=limit=0.95:level=false']
         if sounds:
+            if not (temp/'voice-bed.wav').exists():
+                ff(['-f','concat','-safe','0','-i','concat.txt','-vn','-t',timeline['duration'],
+                    '-ac','2','-ar','48000','-c:a','pcm_s16le',temp/'voice-bed.wav'],job,cwd=temp)
             if not bgm:
                 ff(['-f','concat','-safe','0','-i','concat.txt','-vn','-t',timeline['duration'],
                     '-ac','2','-ar','48000','-c:a','pcm_s16le',temp/'mixed.wav'],job,cwd=temp)
             mixargs=['-i',temp/'mixed.wav'];filters=[];inputs='[0:a]'
             for i,event in enumerate(sounds,1):
-                sound=event['sound_asset'];mixargs+=['-i',job/sound['file']]
-                delay=round(event['start']*1000)
-                filters.append(f'[{i}:a]aresample=48000,aformat=channel_layouts=stereo,volume={sound["gain_db"]}dB,'
+                sound=event['sound_asset'];source=job/sound['file']
+                delay=round(event['start']*1000);gain=sound['gain_db']
+                if event['template']=='expanded-point':
+                    decoded=temp/f'sound-{i}.wav'
+                    ff(['-i',source,'-ac','2','-ar','48000','-c:a','pcm_s16le',decoded],job)
+                    gain=safe_sound_gain(decoded,temp/'voice-bed.wav',event['start'],event['end'],gain)
+                    aligned=temp/f'effect-bed-{i}.wav'
+                    ff(['-i',decoded,'-af',f'volume={gain}dB,adelay={delay}|{delay},apad,atrim=duration={timeline["duration"]}',
+                        '-t',timeline['duration'],'-c:a','pcm_s16le',aligned],job)
+                    source=temp/f'effect-ducked-{i}.wav'
+                    ff(['-i',aligned,'-i',temp/'voice-bed.wav','-filter_complex',
+                        '[0:a][1:a]sidechaincompress=threshold=0.005:ratio=20:attack=5:release=80[a]',
+                        '-map','[a]','-t',timeline['duration'],'-c:a','pcm_s16le',source],job)
+                    # Timing and attenuation are already applied in the finite effect bed.
+                    gain=0;delay=0
+                mixargs+=['-i',source]
+                filters.append(f'[{i}:a]aresample=48000,aformat=channel_layouts=stereo,volume={gain}dB,'
                     f'adelay={delay}|{delay},apad,atrim=duration={timeline["duration"]}[fx{i}]')
                 inputs+=f'[fx{i}]'
             filters.append(f'{inputs}amix=inputs={len(sounds)+1}:duration=first:dropout_transition=0,'

@@ -1,5 +1,7 @@
 # 风格素材库
 
+当前字幕规则：默认字号为原默认三倍，只显示单行白底黑字。原稿 `【】` 标记的对应口播文字以1.35倍字号、黄字黑色描边显示，括号不显示。旧任务的颜色、阴影、动画和手动强调配置会被清除，独立花字轨不再输出文字。长字幕必须按真实字词时间戳拆成短片段，已有字幕溢出会报错，不自动换行或缩小字体。SRT只保存文字与时间，视觉样式由ASS/视频保留。
+
 入口为 `assets/manifest.json`，横竖屏参数在 `assets/profiles/portrait.json`、`landscape.json`。素材可逐项扩展，不需改剪辑规则。
 
 ## 已创建素材
@@ -115,3 +117,6 @@ python scripts/subtitles.py --job /path/job --background \
 ## 句内强调词
 
 同一句可对多个词/字分别设置字号、颜色、加粗、斜体、下划线、描边和阴影，常规文字自动恢复原样式。调用 `emphasize_subtitles.py --job /path/job --emphasis /path/emphasis.json`；配置格式与示例见 [inline-emphasis.md](inline-emphasis.md)。
+
+
+当前扩展规则：原稿没有【】时，由agent先选重点词并提交用户明确审批，使用 `review_emphasis.py` 保存方案及实际用户决定；批准后重跑subtitles再生成最终字幕。逐项展开讲解使用 `expanded-point`，同步 `ding-ding-ding`/`swish` 和画面居中120%平滑推进，事件结束立即恢复100%；一句话列举不触发。执行阶段和精确数据格式见 commands.md、schemas.md。音效实测压低并侧链避让人声，须试听复核。

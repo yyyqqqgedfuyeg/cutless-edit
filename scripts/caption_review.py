@@ -20,6 +20,10 @@ def review_binding(job):
 
 def promote(job):
     job=Path(job);binding=review_binding(job)
+    from emphasis_review import approved_emphasis
+    approved=approved_emphasis(job,required=True)
+    if approved is not None and read(job/'subtitles/layout.json').get('approved_emphasis')!=approved:
+        raise ValueError('重点词审批后须重新运行subtitles.py生成已批准样式')
     path=job/'subtitles/review.json'
     if not path.exists():raise ValueError('字幕尚未逐条参考原稿校对；先运行 review_subtitles.py')
     review=read(path)
@@ -36,6 +40,10 @@ def promote(job):
 
 def require_final(job):
     job=Path(job);binding=review_binding(job)
+    from emphasis_review import approved_emphasis
+    approved=approved_emphasis(job,required=True)
+    if approved is not None and read(job/'subtitles/layout.json').get('approved_emphasis')!=approved:
+        raise ValueError('重点词审批后须重新运行subtitles.py生成已批准样式')
     path=job/'subtitles/review.json'
     if not path.exists() or read(path).get('binding')!=binding:
         raise ValueError('未完成参考原稿的字幕校对，或校对记录已过期；禁止导出')
