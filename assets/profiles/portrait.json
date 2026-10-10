@@ -7,8 +7,8 @@
   "emphasis_zoom": 1.045,
   "emphasis_font_ratio": 0.065,
   "subtitle": {
-    "font": "Noto Sans CJK SC",
-    "font_size_ratio": 0.156,
+    "font": "Smiley Sans Oblique",
+    "font_size_ratio": 0.144,
     "bottom_y_ratio": 0.82,
     "line_chars": 5,
     "max_lines": 1,
@@ -18,14 +18,14 @@
     "outline_width": 0,
     "shadow_color": "#00000080",
     "shadow_depth": 0,
-    "bold": false,
+    "bold": true,
     "animation": "none",
     "bounce_ms": 320,
     "bounce_strength": 0.08,
     "animated_cues": [],
     "background": true,
     "background_color": "#FFFFFF",
-    "background_radius": 0,
+    "background_radius": 18,
     "background_padding": 12
   },
   "style_defaults": {

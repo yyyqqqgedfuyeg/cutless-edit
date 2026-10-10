@@ -1,6 +1,6 @@
 # 可直接调用的分阶段命令
 
-当前字幕规则：默认字号为原默认三倍，只显示单行白底黑字。原稿 `【】` 标记的对应口播文字以1.35倍字号、黄字黑色描边显示，括号不显示。旧任务的颜色、阴影、动画和手动强调配置会被清除，独立花字轨不再输出文字。长字幕必须按真实字词时间戳拆成短片段，已有字幕溢出会报错，不自动换行或缩小字体。SRT只保存文字与时间，视觉样式由ASS/视频保留。
+当前字幕规则：默认使用随包提供的得意黑（Smiley Sans）粗体，字号竖屏0.144、横屏0.066，只显示单行白色圆角矩形底黑字（圆角18px）。原稿 `【】` 标记的对应口播文字以1.35倍字号、黄字黑色描边显示，括号不显示。旧任务的颜色、阴影、动画和手动强调配置会被清除，独立花字轨不再输出文字。长字幕必须按真实字词时间戳拆成短片段，已有字幕溢出会报错，不自动换行或缩小字体。SRT只保存文字与时间，视觉样式由ASS/视频保留。
 
 以下均为实际脚本。`cli.py 阶段名` 与同名独立脚本等价。所有脚本支持 `--help`。在 Windows 将 Python 和路径替换成本机实际值；Python 内部使用参数列表调用 FFmpeg，不拼接用户输入为 shell 命令。
 
@@ -189,7 +189,7 @@ apad=pad_dur=0.2,afftdn=nr=6:nf=-50:tn=1,atrim=duration=DURATION,asetpts=PTS-STA
 
 默认外观保存在横竖屏profile的 `subtitle` 对象中：`text_color`、`outline_color`、`outline_width`、`shadow_color`、`shadow_depth`、`bold`。每个任务的最终设置保存在 `subtitles/layout.json`，再次调用未指定的参数保持原值。更改profile影响新任务及旧任务缺失的字段；已有任务需通过命令行或其layout.json调整。改样式后重跑 `render.py`、`verify_export.py` 更新成片。此配置作用于基础字幕；重点花字仍使用独立样式轨。
 
-`bottom` 是字幕块下边缘相对画面高度的位置，数值增大向下移动；`font-size` 是字号/画面宽度。横屏默认0.91和0.072，竖屏默认0.82和0.156。默认单行上限；术语不能跨行，不够放就修改正式字幕断句。校时只允许每次在原字幕边界±250ms内调整并检查重叠，不改视频切点。跨越大量时间的纠错应重新对齐，不得用小步累加逃避复核。
+`bottom` 是字幕块下边缘相对画面高度的位置，数值增大向下移动；`font-size` 是字号/画面宽度。横屏默认0.91和0.066，竖屏默认0.82和0.144。默认单行上限；术语不能跨行，不够放就修改正式字幕断句。校时只允许每次在原字幕边界±250ms内调整并检查重叠，不改视频切点。跨越大量时间的纠错应重新对齐，不得用小步累加逃避复核。
 
 输出 `subtitles/captions.json`、`layout.json`、`draft.srt`、`draft.ass` 和生成指纹。草稿不能当作最终字幕交付。SRT不包含字体与位置，排版以ASS/烧录成片为准。
 
@@ -243,13 +243,11 @@ agent阅读原稿和全部字幕，核对实际口播、专有名词、数字、
 核查锁定绑定、文件指纹、精确帧数、音画时长、画幅、全片解码；抽取首中尾截图。输出 `output/verification.json`。技术检查通过不代表已经听过全片，agent还需检查截图、重点效果及切口音质。测试摘要必须区分真实API、缓存复用、合成测试和未完成的听感审片。
 
 
-## 素材生成、预览与弹跳
+## 素材使用与弹跳
 
-素材清单、BGM/音效使用示例见 [style-library.md](style-library.md)。这两个工具不调用模型、不读取密钥：
+素材清单、BGM/音效使用示例见 [style-library.md](style-library.md)。内置素材已随技能提供，无需生成。
 
 ```bash
-"$CUTLESS_PY" "$CUTLESS_SKILL/scripts/create_style_assets.py"
-"$CUTLESS_PY" "$CUTLESS_SKILL/scripts/preview_style_assets.py" --layout both
 # 固定字幕底部锚点，缩放回弹；横屏建议0.04 / 240ms
 "$CUTLESS_PY" "$CUTLESS_SKILL/scripts/subtitles.py" --job "$CUTLESS_JOB" \
   --animation bounce --bounce-strength 0.08 --bounce-ms 320 --animated-cues s0001,s0005
@@ -283,4 +281,4 @@ agent阅读原稿和全部字幕，核对实际口播、专有名词、数字、
 
 若已有逐条文字校对记录，批准后重跑subtitles可保留有效记录；没有有效重点词审批时，最终字幕和成片生成被拒绝。审批绑定原稿、当前字幕文字/时间及方案指纹。用户原稿不可改写成带标记的版本来绕过审批。
 
-逐项事件使用剪辑后真实字词起点，JSON格式见 [schemas.md](schemas.md)。`ding-ding-ding` 位于 `assets/audio/叮叮叮.mp3`，`swish` 位于 `assets/audio/唰.mp3`；均为用户提供并要求移动的本地文件。每项选择一个，优先叮叮叮。音效只播放一次，尾音可自然延续，不循环；画面120%居中推进覆盖该项展开讲解的事件时间，到end立即恢复100%。背景、人声、字幕时序均不改动。不得把普通一句话列举标为expanded-point来绕过触发条件。
+逐项事件使用剪辑后真实字词起点，JSON格式见 [schemas.md](schemas.md)。`ding-ding-ding` 位于 `assets/audio/叮叮叮.mp3`，`swish` 位于 `assets/audio/唰.mp3`；均为用户提供并要求移动的本地文件。每项选择一个，缺省自动添加叮叮叮。音效和120%缩放共用同一逐项展开事件及真实字词起点，音效只播放一次，不循环，尾音在事件end截断；画面120%居中推进覆盖该项展开讲解的事件时间，到end立即恢复100%。背景、人声、字幕时序均不改动。不得把普通一句话列举标为expanded-point来绕过触发条件。

@@ -1,6 +1,6 @@
 # 风格素材库
 
-当前字幕规则：默认字号为原默认三倍，只显示单行白底黑字。原稿 `【】` 标记的对应口播文字以1.35倍字号、黄字黑色描边显示，括号不显示。旧任务的颜色、阴影、动画和手动强调配置会被清除，独立花字轨不再输出文字。长字幕必须按真实字词时间戳拆成短片段，已有字幕溢出会报错，不自动换行或缩小字体。SRT只保存文字与时间，视觉样式由ASS/视频保留。
+当前字幕规则：默认使用随包提供的得意黑（Smiley Sans）粗体，字号竖屏0.144、横屏0.066，只显示单行白色圆角矩形底黑字（圆角18px）。原稿 `【】` 标记的对应口播文字以1.35倍字号、黄字黑色描边显示，括号不显示。旧任务的颜色、阴影、动画和手动强调配置会被清除，独立花字轨不再输出文字。长字幕必须按真实字词时间戳拆成短片段，已有字幕溢出会报错，不自动换行或缩小字体。SRT只保存文字与时间，视觉样式由ASS/视频保留。
 
 入口为 `assets/manifest.json`，横竖屏参数在 `assets/profiles/portrait.json`、`landscape.json`。素材可逐项扩展，不需改剪辑规则。
 
@@ -23,21 +23,7 @@
 | 画面 | gentle-push | 不加文字的轻推进 |
 | 新花字 | subtitle-bounce / corner-label / focus-bracket | 回弹、角标、括号强调 |
 
-BGM和音效由 `scripts/create_style_assets.py` 用标准库确定性合成，无第三方采样。它们是可循环的简单配乐起步素材；实际任务应试听循环接缝及人声遮蔽情况。音频指标保存在 `assets/audio-metadata.json`。调色是参数预设，不是LUT或自动曝光修复。
-
-## 预览与生成
-
-- [竖屏字幕动画/BGM预览](../assets/previews/portrait-styles.mp4)
-- [横屏字幕动画/BGM预览](../assets/previews/landscape-styles.mp4)
-
-预览仅展示效果字幕，不叠加效果名称、编号或说明标题。预览是10秒合成背景演示，不是用户成片，也不代表已经完成真实口播的校对或音质验收。预览脚本可用 `--output /path/previews` 输出到其他目录。
-
-```bash
-python scripts/create_style_assets.py
-python scripts/preview_style_assets.py --layout both
-```
-
-以上路径相对skill目录；也可按commands.md使用绝对路径。生成器默认重建内置合成音频；新增手工素材应使用不同ID，避免覆盖。
+内置BGM和合成音效使用标准库确定性生成，无第三方采样。它们是可循环的简单配乐起步素材；实际任务应试听循环接缝及人声遮蔽情况。音频指标保存在 `assets/audio-metadata.json`。调色是参数预设，不是LUT或自动曝光修复。
 
 ## 字幕弹跳与固定位置
 

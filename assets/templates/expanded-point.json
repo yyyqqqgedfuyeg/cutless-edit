@@ -3,5 +3,7 @@
   "y_ratio": 0.64,
   "zoom": 1.2,
   "zoom_transition_seconds": 0.25,
-  "description": "仅逐项展开讲解：中心平滑推进到120%，保持至事件结束并立即恢复100%，无独立文字效果"
+  "description": "仅逐项展开讲解：中心平滑推进到120%，保持至事件结束并立即恢复100%，无独立文字效果",
+  "sound": "ding-ding-ding",
+  "sound_gain_db": -24
 }
