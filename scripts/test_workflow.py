@@ -24,7 +24,7 @@ class WorkflowTests(unittest.TestCase):
         for folder in ['media','audio','qc','asr','previews','subtitles']:(self.job/folder).mkdir()
         (self.job/'media/source.mp4').write_bytes(b'synthetic fixture; not a real video')
         (self.job/'audio/original.wav').write_bytes(b'synthetic fixture audio')
-        (self.job/'script.txt').write_text('前句。后句。',encoding='utf-8')
+        (self.job/'script.txt').write_text('【前句】。后句。',encoding='utf-8')
         (self.job/'asr/preview.srt').write_text('fixture',encoding='utf-8')
         write(self.job/'asr/transcription.json',{'fixture':True})
         words={'unit':'milliseconds','words':[
@@ -150,14 +150,14 @@ class WorkflowTests(unittest.TestCase):
             shadow_color='#00000080',shadow_depth=0,bold=False)
         subtitles(args)
         header=(self.job/'subtitles/draft.ass').read_text().split('Style: Default,',1)[1].splitlines()[0].split(',')
-        self.assertEqual(header[2],'&H004FD5FF')
-        self.assertEqual(header[4],'&H00563412')
+        self.assertEqual(header[2],'&H00000000')
+        self.assertEqual(header[4],'&H00000000')
         self.assertEqual(header[6],'0')
-        self.assertEqual(header[15:17],['3.5','0'])
+        self.assertEqual(header[15:17],['0','0'])
         args.text_color=args.outline_width=None
         subtitles(args)
-        self.assertEqual(read(self.job/'subtitles/layout.json')['text_color'],'#FFD54F')
-        self.assertEqual(read(self.job/'subtitles/layout.json')['outline_width'],3.5)
+        self.assertEqual(read(self.job/'subtitles/layout.json')['text_color'],'#000000')
+        self.assertEqual(read(self.job/'subtitles/layout.json')['outline_width'],0)
         self.assertEqual(locked(self.job)[1],before)
 
     def caption_args(self):
@@ -178,14 +178,27 @@ class WorkflowTests(unittest.TestCase):
             if name=='project.json':value.update(output_width=180,output_height=320)
             if name=='asr/provenance.json':value['audio_sha256']=digest(self.job/'audio/original.wav')
             write(self.job/name,value)
+        words=read(self.job/'asr/words.json');words['words'][0]['begin_time']=0
+        write(self.job/'asr/words.json',words)
+        for name in ('decisions.json','asr/provenance.json'):
+            value=read(self.job/name);value['words_sha256']=digest(self.job/'asr/words.json');write(self.job/name,value)
+        (self.job/'script.txt').write_text('第一，【前句】，详细讲解原因。第二，后句，继续展开说明。')
         self.create_lock();args=self.caption_args();args.animation='bounce';args.background=True;args.background_color='#183C60CC'
         subtitles(args);review_subtitles(self.review_report())
         write(self.job/'events.json',[{'start':.3,'end':1.5,'template':'subtitle-bounce',
-            'text':'测试','sound':'gentle-chime','background':True,'background_color':'#503060DD'}])
-        for preset,grade in ((None,'warm-soft'),('calm-focus','auto')):
+            'text':'测试','background':True,'background_color':'#503060DD'}])
+        for preset,grade in ((None,'warm-soft'),('calm-focus','auto'),(None,'none')):
             with self.subTest(bgm=preset):
                 events=read(self.job/'events.json')
                 events[0]['template']='char-bounce' if preset is None else 'char-grow'
+                if grade=='none':
+                    cues=read(self.job/'subtitles/captions.json')['cues']
+                    events=[{'start':cue['start'],'end':cue['start']+1,'template':'expanded-point',
+                        'sequence_group':'test','point_index':i,'expanded_explanation':True,
+                        'reason':'合成测试中的逐项独立解释','script_quote':quote,'sound':sound}
+                        for i,(cue,quote,sound) in enumerate(zip(cues,
+                            ['第一，【前句】，详细讲解原因。','第二，后句，继续展开说明。'],
+                            ['ding-ding-ding','swish']),1)]
                 write(self.job/'events.json',events)
                 style(SimpleNamespace(job=str(self.job),events=str(self.job/'events.json'),
                     grade=grade,bgm=None,bgm_preset=preset,bgm_source=None,bgm_gain=-14))
@@ -195,10 +208,51 @@ class WorkflowTests(unittest.TestCase):
     def review_report(self):
         cues=read(self.job/'subtitles/captions.json')['cues']
         report={'reviewer':'unit-test fixture','items':[
-            {**{k:c[k] for k in ('id','text','start','end')},'script_quote':'前句。后句。',
+            {**{k:c[k] for k in ('id','text','start','end')},'script_quote':(self.job/'script.txt').read_text(),
                 'decision':'matches_script','alignment_checked':True,'reason':'synthetic test'} for c in cues]}
         write(self.job/'reviews.json',report)
         return SimpleNamespace(job=str(self.job),reviews=str(self.job/'reviews.json'))
+
+    def test_marked_script_defaults_and_overflow(self):
+        (self.job/'script.txt').write_text('【前句】。后句。',encoding='utf-8')
+        self.create_lock();before=locked(self.job)[1]
+        subtitles(self.caption_args())
+        layout=read(self.job/'subtitles/layout.json')
+        ass=(self.job/'subtitles/draft.ass').read_text()
+        self.assertEqual(layout['font_size_ratio'],.052*3)
+        self.assertEqual(layout['max_lines'],1)
+        self.assertIn('\\1c&H0000FFFF&',ass)
+        self.assertIn('\\fs226.80',ass)
+        self.assertIn('\\bord3',ass)
+        self.assertIn('\\1c&H00FFFFFF&',ass)
+        self.assertNotIn('\\N',ass)
+        self.assertNotIn('\\t(',ass)
+        self.assertEqual(locked(self.job)[1],before)
+        path=self.job/'subtitles/captions.json'
+        captions=read(path);captions['cues'][0]['text']='过长的字幕需要按真实字词边界拆成多个短片段'
+        write(path,captions)
+        with self.assertRaisesRegex(ValueError,'单行字幕超出'):subtitles(self.caption_args())
+
+    def test_unmarked_manuscript_blocks_final_until_user_approves(self):
+        from emphasis_review import emphasis_review
+        (self.job/'script.txt').write_text('前句。后句。')
+        self.create_lock();subtitles(self.caption_args())
+        with self.assertRaisesRegex(ValueError,'用户明确审批'):
+            review_subtitles(self.review_report())
+        cues=read(self.job/'subtitles/captions.json')['cues']
+        write(self.job/'proposal.json',{'reason':'突出第一句的核心信息','items':[
+            {'id':cues[0]['id'],'text':cues[0]['text'],'spans':[{'text':'前句'}]}]})
+        args=SimpleNamespace(job=str(self.job),proposal=str(self.job/'proposal.json'))
+        emphasis_review(args)
+        with self.assertRaises(ValueError):require_final(self.job)
+        args.proposal=None;args.decision='approve';args.user_response='同意突出前句'
+        emphasis_review(args)
+        with self.assertRaisesRegex(ValueError,'重新运行subtitles'):require_final(self.job)
+        subtitles(self.caption_args());require_final(self.job)
+        self.assertIn('\\1c&H0000FFFF&',(self.job/'subtitles/final.ass').read_text())
+        args.decision='reject';args.user_response='取消刚才的重点方案'
+        emphasis_review(args)
+        with self.assertRaises(ValueError):require_final(self.job)
 
     def test_empty_original_is_rejected(self):
         (self.job/'script.txt').write_text(' \n。！？',encoding='utf-8')
@@ -217,7 +271,7 @@ class WorkflowTests(unittest.TestCase):
             'spans':[{'text':cue['text'],'style':{'size_scale':1.3,'color':'#FFD54F'}}]}])
         args2.emphasis=str(self.job/'emphasis.json')
         subtitles(args2);require_final(self.job)
-        self.assertIn('\\fscx',(self.job/'subtitles/final.ass').read_text())
+        self.assertNotIn('\\fscx',(self.job/'subtitles/final.ass').read_text())
         self.assertEqual(digest(self.job/'subtitles/captions.json'),before)
         c=read(self.job/'subtitles/captions.json');c['cues'][0]['text']='改变内容'
         write(self.job/'subtitles/captions.json',c)

@@ -7,6 +7,7 @@ import edit_steps
 import finish_steps
 import media_steps
 import caption_review
+import emphasis_review
 
 
 FUNCTIONS = {
@@ -17,7 +18,8 @@ FUNCTIONS = {
     'preview_cuts':edit_steps.preview_cuts,'lock_timeline':edit_steps.lock_timeline,
     'subtitles':finish_steps.subtitles,'style':finish_steps.style,
     'render':finish_steps.render,'verify_export':finish_steps.verify_export,
-    'review_subtitles':caption_review.review_subtitles}
+    'review_subtitles':caption_review.review_subtitles,
+    'review_emphasis':emphasis_review.emphasis_review}
 
 
 def main(stage=None):
@@ -46,6 +48,10 @@ def main(stage=None):
         parser.add_argument('--reuse-source',help='旧转写实际对应的原视频，校验指纹')
         parser.add_argument('--reuse-provenance',help='阿里真实转写的provenance.json，复用时必填')
         parser.add_argument('--timeout',type=int,default=900)
+    if stage=='review_emphasis':
+        parser.add_argument('--proposal',help='agent重点词方案JSON；保存待审批，不自动批准')
+        parser.add_argument('--decision',choices=['approve','reject'])
+        parser.add_argument('--user-response',help='用户实际明确审批回复，不能由agent编造')
     if stage=='review_edits':parser.add_argument('--reviews',required=True,help='agent填写的决策JSON列表')
     if stage=='review_subtitles':parser.add_argument('--reviews',required=True,help='逐条引用原稿、确认文字及对齐的校对JSON')
     if stage=='preview_cuts':parser.add_argument('--context',type=float,default=1.5)

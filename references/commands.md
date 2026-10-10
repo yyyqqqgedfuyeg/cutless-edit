@@ -1,5 +1,7 @@
 # 可直接调用的分阶段命令
 
+当前字幕规则：默认字号为原默认三倍，只显示单行白底黑字。原稿 `【】` 标记的对应口播文字以1.35倍字号、黄字黑色描边显示，括号不显示。旧任务的颜色、阴影、动画和手动强调配置会被清除，独立花字轨不再输出文字。长字幕必须按真实字词时间戳拆成短片段，已有字幕溢出会报错，不自动换行或缩小字体。SRT只保存文字与时间，视觉样式由ASS/视频保留。
+
 以下均为实际脚本。`cli.py 阶段名` 与同名独立脚本等价。所有脚本支持 `--help`。在 Windows 将 Python 和路径替换成本机实际值；Python 内部使用参数列表调用 FFmpeg，不拼接用户输入为 shell 命令。
 
 ## 0. 环境
@@ -187,7 +189,7 @@ apad=pad_dur=0.2,afftdn=nr=6:nf=-50:tn=1,atrim=duration=DURATION,asetpts=PTS-STA
 
 默认外观保存在横竖屏profile的 `subtitle` 对象中：`text_color`、`outline_color`、`outline_width`、`shadow_color`、`shadow_depth`、`bold`。每个任务的最终设置保存在 `subtitles/layout.json`，再次调用未指定的参数保持原值。更改profile影响新任务及旧任务缺失的字段；已有任务需通过命令行或其layout.json调整。改样式后重跑 `render.py`、`verify_export.py` 更新成片。此配置作用于基础字幕；重点花字仍使用独立样式轨。
 
-`bottom` 是字幕块下边缘相对画面高度的位置，数值增大向下移动；`font-size` 是字号/画面宽度。横屏默认0.91和0.024，竖屏默认0.82和0.052。默认双行上限；术语不能跨行，不够放就修改正式字幕断句。校时只允许每次在原字幕边界±250ms内调整并检查重叠，不改视频切点。跨越大量时间的纠错应重新对齐，不得用小步累加逃避复核。
+`bottom` 是字幕块下边缘相对画面高度的位置，数值增大向下移动；`font-size` 是字号/画面宽度。横屏默认0.91和0.072，竖屏默认0.82和0.156。默认单行上限；术语不能跨行，不够放就修改正式字幕断句。校时只允许每次在原字幕边界±250ms内调整并检查重叠，不改视频切点。跨越大量时间的纠错应重新对齐，不得用小步累加逃避复核。
 
 输出 `subtitles/captions.json`、`layout.json`、`draft.srt`、`draft.ass` 和生成指纹。草稿不能当作最终字幕交付。SRT不包含字体与位置，排版以ASS/烧录成片为准。
 
@@ -222,7 +224,7 @@ agent阅读原稿和全部字幕，核对实际口播、专有名词、数字、
   --bgm-source '自有/授权素材，记录来源及授权范围' --bgm-gain -24
 ```
 
-输出 `style/style.json`、`overlay.ass`。重点事件默认不能重叠，缩放不超过1.08倍。`natural` 仅轻调对比度和饱和度，不是自动白平衡修复；默认 `auto` 按画幅选择 `portrait-fresh` 或 `landscape-neutral`，不合适时明确使用 `--grade none`。素材索引见 `assets/manifest.json`。不提供BGM时不联网搜索或自行下载音乐。
+输出 `style/style.json`、`overlay.ass`。重点事件不能重叠；普通事件缩放不超过1.08倍，逐项展开讲解使用 `expanded-point` 固定1.20倍。`natural` 仅轻调对比度和饱和度，不是自动白平衡修复；默认 `auto` 按画幅选择 `portrait-fresh` 或 `landscape-neutral`，不合适时明确使用 `--grade none`。素材索引见 `assets/manifest.json`。不提供BGM时不联网搜索或自行下载音乐。
 
 ## 13. 导出：render.py
 
@@ -263,3 +265,22 @@ agent阅读原稿和全部字幕，核对实际口播、专有名词、数字、
 
 
 句内强调另有独立入口 `emphasize_subtitles.py --job /path/job --emphasis /path/emphasis.json`（等价于subtitles.py的同名参数），见 [句内强调文档](inline-emphasis.md)。
+
+
+## 字幕校对后：重点词审批与逐项讲解效果
+
+原稿无 `【】` 时，agent先生成重点词方案并展示给用户。方案JSON为 `{"reason":"选择重点的理由","items":[{"id":"s0001","text":"与当前字幕完全相同","spans":[{"text":"重点词","occurrence":1}]}]}`；只选择文字，不自定义样式。
+
+```bash
+"$CUTLESS_PY" "$CUTLESS_SKILL/scripts/review_emphasis.py" --job "$CUTLESS_JOB" --proposal /path/proposal.json
+# 此处等待用户明确审批；仅在实际收到用户回复后记录，不能自动执行下面的批准示例。
+"$CUTLESS_PY" "$CUTLESS_SKILL/scripts/review_emphasis.py" --job "$CUTLESS_JOB" --decision approve --user-response '用户实际明确批准的原话'
+# 拒绝使用 --decision reject；按反馈重拟方案。
+"$CUTLESS_PY" "$CUTLESS_SKILL/scripts/subtitles.py" --job "$CUTLESS_JOB"
+"$CUTLESS_PY" "$CUTLESS_SKILL/scripts/review_subtitles.py" --job "$CUTLESS_JOB" --reviews /path/subtitle-reviews.json
+"$CUTLESS_PY" "$CUTLESS_SKILL/scripts/style.py" --job "$CUTLESS_JOB" --events /path/expanded-points.json --grade none
+```
+
+若已有逐条文字校对记录，批准后重跑subtitles可保留有效记录；没有有效重点词审批时，最终字幕和成片生成被拒绝。审批绑定原稿、当前字幕文字/时间及方案指纹。用户原稿不可改写成带标记的版本来绕过审批。
+
+逐项事件使用剪辑后真实字词起点，JSON格式见 [schemas.md](schemas.md)。`ding-ding-ding` 位于 `assets/audio/叮叮叮.mp3`，`swish` 位于 `assets/audio/唰.mp3`；均为用户提供并要求移动的本地文件。每项选择一个，优先叮叮叮。音效只播放一次，尾音可自然延续，不循环；画面120%居中推进覆盖该项展开讲解的事件时间，到end立即恢复100%。背景、人声、字幕时序均不改动。不得把普通一句话列举标为expanded-point来绕过触发条件。

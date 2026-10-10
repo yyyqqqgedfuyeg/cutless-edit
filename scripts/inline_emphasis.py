@@ -70,3 +70,65 @@ def emphasis_map(items,cues):
         if not isinstance(item.get('spans'),list):raise ValueError('强调配置需要spans列表')
         result[item['id']]=item['spans']
     return result
+
+
+SCRIPT_EMPHASIS = {'size_scale': 1.35, 'color': '#FFFF00',
+    'outline_color': '#000000', 'outline_width': 3, 'shadow_depth': 0,
+    'bold': False, 'italic': False, 'underline': False}
+
+
+def script_emphasis(script, cues):
+    """Map marked manuscript characters to matching spoken text, in sequence.
+
+    Punctuation is excluded from alignment; repeated phrases retain their position.
+    This only selects appearance and never corrects text or timestamps.
+    """
+    import unicodedata
+    from difflib import SequenceMatcher
+    source=[];marked=[];inside=False
+    for char in script:
+        if char == '【':
+            if inside: raise ValueError('原稿强调标记不能嵌套')
+            inside=True;continue
+        if char == '】':
+            if not inside: raise ValueError('原稿强调标记不成对')
+            inside=False;continue
+        if char.isspace() or unicodedata.category(char).startswith('P'):continue
+        source.append(char);marked.append(inside)
+    if inside:raise ValueError('原稿强调标记不成对')
+    target=[];positions=[]
+    for cue in cues:
+        for index,char in enumerate(cue['text']):
+            if char.isspace() or unicodedata.category(char).startswith('P'):continue
+            target.append(char);positions.append((cue['id'],index))
+    selected={}
+    for block in SequenceMatcher(None,source,target,autojunk=False).get_matching_blocks():
+        for offset in range(block.size):
+            if marked[block.a+offset]:
+                cue_id,index=positions[block.b+offset]
+                selected.setdefault(cue_id,set()).add(index)
+    result={}
+    for cue in cues:
+        indices=sorted(selected.get(cue['id'],[]));runs=[]
+        for index in indices:
+            if runs and index==runs[-1][1]:runs[-1][1]+=1
+            else:runs.append([index,index+1])
+        spans=[]
+        for start,end in runs:
+            phrase=cue['text'][start:end]
+            occurrence=1;cursor=0
+            while cursor<start:
+                found=cue['text'].find(phrase,cursor)
+                if found<0 or found>=start:break
+                occurrence+=1;cursor=found+len(phrase)
+            spans.append({'text':phrase,'occurrence':occurrence,'style':dict(SCRIPT_EMPHASIS)})
+        result[cue['id']]=spans
+    return result
+
+
+def single_line_layout(layout):
+    """Discard persisted decorative effects for the manuscript subtitle policy."""
+    return {**layout, 'max_lines':1, 'text_color':'#000000',
+        'outline_color':'#000000', 'outline_width':0, 'shadow_depth':0,
+        'bold':False, 'animation':'none', 'animated_cues':[], 'emphasis':[],
+        'background':True, 'background_color':'#FFFFFF', 'background_radius':0}
