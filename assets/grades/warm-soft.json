@@ -1,0 +1,11 @@
+{
+  "id": "warm-soft",
+  "parameters": {
+    "contrast": 1.01,
+    "saturation": 1.02,
+    "brightness": 0.004,
+    "red": 0.015,
+    "blue": -0.01
+  },
+  "description": "轻暖色，不作强烈滤镜"
+}

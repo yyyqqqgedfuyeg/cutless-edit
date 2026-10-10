@@ -1,0 +1,128 @@
+{
+  "version": 2,
+  "templates": [
+    {
+      "id": "keyword-pop",
+      "path": "templates/keyword-pop.json",
+      "origin": "项目原创参数模板"
+    },
+    {
+      "id": "key-sentence",
+      "path": "templates/key-sentence.json",
+      "origin": "项目原创参数模板"
+    },
+    {
+      "id": "number-highlight",
+      "path": "templates/number-highlight.json",
+      "origin": "项目原创参数模板"
+    },
+    {
+      "id": "chapter-tag",
+      "path": "templates/chapter-tag.json",
+      "origin": "项目原创参数模板"
+    },
+    {
+      "id": "soft-emphasis",
+      "path": "templates/soft-emphasis.json",
+      "origin": "项目原创参数模板"
+    },
+    {
+      "id": "gentle-push",
+      "path": "templates/gentle-push.json",
+      "origin": "项目原创参数模板"
+    },
+    {
+      "id": "subtitle-bounce",
+      "path": "templates/subtitle-bounce.json",
+      "origin": "项目原创参数模板"
+    },
+    {
+      "id": "corner-label",
+      "path": "templates/corner-label.json",
+      "origin": "项目原创参数模板"
+    },
+    {
+      "id": "focus-bracket",
+      "path": "templates/focus-bracket.json",
+      "origin": "项目原创参数模板"
+    },
+    {
+      "id": "char-bounce",
+      "path": "templates/char-bounce.json",
+      "origin": "项目原创参数模板"
+    },
+    {
+      "id": "char-grow",
+      "path": "templates/char-grow.json",
+      "origin": "项目原创参数模板"
+    }
+  ],
+  "audio": [
+    {
+      "id": "soft-tick",
+      "path": "audio/soft-tick.wav",
+      "origin": "本项目程序合成，无外部采样",
+      "usage": "按重点事件显式添加，默认关闭"
+    },
+    {
+      "id": "gentle-chime",
+      "path": "audio/gentle-chime.wav",
+      "origin": "本项目程序合成，无外部采样",
+      "usage": "按重点事件显式添加，默认关闭"
+    },
+    {
+      "id": "soft-whoosh",
+      "path": "audio/soft-whoosh.wav",
+      "origin": "本项目程序合成，无外部采样",
+      "usage": "按重点事件显式添加，默认关闭"
+    }
+  ],
+  "bgm": [
+    {
+      "id": "calm-focus",
+      "path": "bgm/calm-focus.wav",
+      "origin": "本项目程序合成，无下载采样和第三方录音",
+      "bpm": 72,
+      "recommended_layout": "landscape",
+      "description": "舒缓铺底，专业讲解"
+    },
+    {
+      "id": "warm-explain",
+      "path": "bgm/warm-explain.wav",
+      "origin": "本项目程序合成，无下载采样和第三方录音",
+      "bpm": 80,
+      "recommended_layout": "both",
+      "description": "温和叙述，低密度拨音"
+    },
+    {
+      "id": "bright-pulse",
+      "path": "bgm/bright-pulse.wav",
+      "origin": "本项目程序合成，无下载采样和第三方录音",
+      "bpm": 96,
+      "recommended_layout": "portrait",
+      "description": "轻节奏脉冲，紧凑口播"
+    }
+  ],
+  "grades": [
+    {
+      "id": "natural",
+      "path": "grades/natural.json",
+      "description": "轻度自然增强"
+    },
+    {
+      "id": "portrait-fresh",
+      "path": "grades/portrait-fresh.json",
+      "description": "竖屏清爽，温和提升明度"
+    },
+    {
+      "id": "landscape-neutral",
+      "path": "grades/landscape-neutral.json",
+      "description": "横屏克制，中性低饱和"
+    },
+    {
+      "id": "warm-soft",
+      "path": "grades/warm-soft.json",
+      "description": "轻暖色，不作强烈滤镜"
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "calm-focus": {
+    "duration": 13.333333333333334,
+    "sample_rate": 24000,
+    "channels": 2,
+    "rms_dbfs": -20.92,
+    "peak_dbfs": -11.02
+  },
+  "warm-explain": {
+    "duration": 12.0,
+    "sample_rate": 24000,
+    "channels": 2,
+    "rms_dbfs": -20.92,
+    "peak_dbfs": -10.31
+  },
+  "bright-pulse": {
+    "duration": 10.0,
+    "sample_rate": 24000,
+    "channels": 2,
+    "rms_dbfs": -20.92,
+    "peak_dbfs": -9.66
+  },
+  "soft-tick": {
+    "duration": 0.7,
+    "sample_rate": 24000,
+    "channels": 2,
+    "rms_dbfs": -25.19,
+    "peak_dbfs": -12.07
+  },
+  "gentle-chime": {
+    "duration": 0.7,
+    "sample_rate": 24000,
+    "channels": 2,
+    "rms_dbfs": -25.19,
+    "peak_dbfs": -13.06
+  },
+  "soft-whoosh": {
+    "duration": 0.45,
+    "sample_rate": 24000,
+    "channels": 2,
+    "rms_dbfs": -27.96,
+    "peak_dbfs": -13.89
+  }
+}

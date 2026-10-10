@@ -1,0 +1,35 @@
+{
+  "layout": "landscape",
+  "gap_threshold": 0.75,
+  "ordinary_pause": 0.4,
+  "section_pause": 0.65,
+  "emotional_pause": "preserve_by_semantic_review",
+  "emphasis_zoom": 1.025,
+  "emphasis_font_ratio": 0.034,
+  "subtitle": {
+    "font": "Noto Sans CJK SC",
+    "font_size_ratio": 0.024,
+    "bottom_y_ratio": 0.91,
+    "line_chars": 30,
+    "max_lines": 2,
+    "protected_phrases": [],
+    "text_color": "#FFFFFF",
+    "outline_color": "#101010",
+    "outline_width": 2,
+    "shadow_color": "#00000080",
+    "shadow_depth": 1,
+    "bold": true,
+    "animation": "none",
+    "bounce_ms": 240,
+    "bounce_strength": 0.04,
+    "animated_cues": [],
+    "background": false,
+    "background_color": "#203040CC",
+    "background_radius": 12,
+    "background_padding": 12
+  },
+  "style_defaults": {
+    "grade": "landscape-neutral",
+    "bgm": "calm-focus"
+  }
+}

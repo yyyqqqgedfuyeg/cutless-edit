@@ -1,0 +1,7 @@
+{
+  "animation": "char-bounce",
+  "y_ratio": 0.65,
+  "color": "#FFE082",
+  "stagger_ms": 90,
+  "animation_ms": 300
+}

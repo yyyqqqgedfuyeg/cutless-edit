@@ -1,0 +1,4 @@
+interface:
+  display_name: "口播精剪"
+  short_description: "按原稿处理横竖屏口播：真实转写、气口口误精剪、时间轴锁定、字幕与风格导出"
+  default_prompt: "使用 $cutless-edit，结合项目 .env 和原稿完成口播质检、精剪、字幕及成片导出。"

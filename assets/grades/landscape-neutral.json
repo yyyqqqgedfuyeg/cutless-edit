@@ -1,0 +1,9 @@
+{
+  "id": "landscape-neutral",
+  "parameters": {
+    "contrast": 1.015,
+    "saturation": 0.985,
+    "brightness": 0
+  },
+  "description": "横屏克制，中性低饱和"
+}

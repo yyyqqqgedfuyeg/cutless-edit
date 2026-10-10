@@ -1,0 +1,9 @@
+{
+  "id": "natural",
+  "parameters": {
+    "contrast": 1.02,
+    "saturation": 1.03,
+    "brightness": 0
+  },
+  "description": "轻度自然增强"
+}
