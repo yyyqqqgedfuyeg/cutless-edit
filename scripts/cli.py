@@ -29,7 +29,7 @@ def main(stage=None):
             return
         stage=sys.argv.pop(1)
     parser=argparse.ArgumentParser(description=f'cutless-edit / {stage}；详见 references/commands.md')
-    if stage=='doctor':parser.add_argument('--font',default='Noto Sans CJK SC',help='检查实际字体名或字体文件路径')
+    if stage=='doctor':parser.add_argument('--font',default='Smiley Sans Oblique',help='检查实际字体名或字体文件路径')
     if stage!='doctor':parser.add_argument('--job',required=True,help='单次任务目录')
     if stage=='ingest':
         parser.add_argument('--video',required=True)

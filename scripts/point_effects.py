@@ -32,6 +32,8 @@ def validate_points(events, job, timeline, words):
         if e['end']-e['start']<1:raise ValueError('一句简短枚举不触发逐项讲解效果')
         if not any(abs(e['start']-start)<=max(.04,1/fps) for start in starts):
             raise ValueError('逐项讲解效果起点需对齐锁定后真实字词起点')
+        # The same reviewed event always drives both the zoom and its cue sound.
+        if 'sound' not in e:e['sound']='ding-ding-ding'
         if e.get('sound') not in POINT_SOUNDS:raise ValueError('逐项讲解选择叮叮叮或唰，优先叮叮叮')
         e['zoom']=1.2
         transition=e.get('zoom_transition_seconds',.25)

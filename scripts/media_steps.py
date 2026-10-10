@@ -29,14 +29,14 @@ def doctor(a):
     for name in ['requests','dotenv','requests_toolbelt','PIL']:
         try:__import__(name);found[name]=True
         except ImportError:found[name]=False
-    font=getattr(a,'font','Noto Sans CJK SC')
+    font=getattr(a,'font','Smiley Sans Oblique')
     try:
         from visual_assets import font_metrics
         f,height=font_metrics(font)
         details['font']={'requested':font,'resolved':str(f.path),'family':f.getname()[0]}
         found['font_metrics']=height>0
         # fc-match can silently fall back to a font that lacks Chinese: reject name fallback.
-        found['requested_font']=Path(font).is_file() or font.casefold() in f.getname()[0].casefold()
+        found['requested_font']=Path(font).is_file() or font.casefold() in f.getname()[0].casefold() or (font=='Smiley Sans Oblique' and f.getname()[0]=='Smiley Sans')
     except (ValueError,ImportError,OSError):found['font_metrics']=False
     report={'python':sys.executable,'python_version':sys.version.split()[0],
         'programs':paths,'capabilities':found,'details':details,'missing':[k for k,v in found.items() if not v],

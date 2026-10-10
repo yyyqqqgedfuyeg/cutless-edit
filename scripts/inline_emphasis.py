@@ -74,7 +74,7 @@ def emphasis_map(items,cues):
 
 SCRIPT_EMPHASIS = {'size_scale': 1.35, 'color': '#FFFF00',
     'outline_color': '#000000', 'outline_width': 3, 'shadow_depth': 0,
-    'bold': False, 'italic': False, 'underline': False}
+    'bold': True, 'italic': False, 'underline': False}
 
 
 def script_emphasis(script, cues):
@@ -130,5 +130,6 @@ def single_line_layout(layout):
     """Discard persisted decorative effects for the manuscript subtitle policy."""
     return {**layout, 'max_lines':1, 'text_color':'#000000',
         'outline_color':'#000000', 'outline_width':0, 'shadow_depth':0,
-        'bold':False, 'animation':'none', 'animated_cues':[], 'emphasis':[],
-        'background':True, 'background_color':'#FFFFFF', 'background_radius':0}
+        'bold':True, 'animation':'none', 'animated_cues':[], 'emphasis':[],
+        'background':True, 'background_color':'#FFFFFF',
+        'background_radius':layout.get('background_radius',18)}

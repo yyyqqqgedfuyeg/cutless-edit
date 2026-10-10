@@ -75,6 +75,14 @@ def subtitles(a):
     if layout.get('subtitle_policy')!='manuscript-single-line-v1':
         layout['font_size_ratio']=profile['subtitle']['font_size_ratio']
         layout['line_chars']=profile['subtitle']['line_chars']
+    # Upgrade previous defaults while retaining deliberate font/size overrides.
+    if layout.get('subtitle_style')!='short-video-v2':
+        if layout.get('font')=='Noto Sans CJK SC':layout['font']=profile['subtitle']['font']
+        if layout.get('font_size_ratio') in (.156,.072):
+            layout['font_size_ratio']=profile['subtitle']['font_size_ratio']
+        if layout.get('background_radius',0)==0:
+            layout['background_radius']=profile['subtitle']['background_radius']
+    layout['subtitle_style']='short-video-v2'
     layout['subtitle_policy']='manuscript-single-line-v1'
     for key,arg in [('bottom_y_ratio','bottom'),('font_size_ratio','font_size'),('font','font'),('line_chars','line_chars'),
                     ('text_color','text_color'),('outline_color','outline_color'),('outline_width','outline_width'),
@@ -244,7 +252,8 @@ def video_filters(style_data,width,height,fps):
     zoom=zoom_expression(style_data['events'],fps)
     if style_data['events']:
         vf.append(f"zoompan=z='{zoom}':x='iw/2-iw/zoom/2':y='ih/2-ih/zoom/2':d=1:s={width}x{height}:fps={fps}")
-    vf+=['ass=captions.ass','ass=overlay.ass']
+    font_dir=str(SKILL/'assets/fonts').replace('\\','/').replace(':',r'\:').replace("'",r"\'")
+    vf+=[f"ass=captions.ass:fontsdir='{font_dir}'",f"ass=overlay.ass:fontsdir='{font_dir}'"]
     return vf
 
 
@@ -256,6 +265,8 @@ def render(a):
     if read(job/'subtitles/captions.json')['lock_sha256']!=lock_hash:raise ValueError('字幕属于另一时间轴')
     width,height=dimensions(p);fps=timeline['fps']
     bgm=style_data['bgm']
+    if any(e['template']=='expanded-point' and not e.get('sound_asset') for e in style_data['events']):
+        raise ValueError('逐项讲解缩放缺少音效素材，请重新运行style.py；音效与缩放必须共用事件')
     sounds=[e for e in style_data['events'] if e.get('sound_asset')]
     for e in sounds:
         if digest(job/e['sound_asset']['file'])!=e['sound_asset']['sha256']:raise ValueError('音效素材已改动')
@@ -331,7 +342,7 @@ def render(a):
                     ff(['-i',source,'-ac','2','-ar','48000','-c:a','pcm_s16le',decoded],job)
                     gain=safe_sound_gain(decoded,temp/'voice-bed.wav',event['start'],event['end'],gain)
                     aligned=temp/f'effect-bed-{i}.wav'
-                    ff(['-i',decoded,'-af',f'volume={gain}dB,adelay={delay}|{delay},apad,atrim=duration={timeline["duration"]}',
+                    ff(['-i',decoded,'-af',f'atrim=duration={event["end"]-event["start"]},asetpts=PTS-STARTPTS,volume={gain}dB,adelay={delay}|{delay},apad,atrim=duration={timeline["duration"]}',
                         '-t',timeline['duration'],'-c:a','pcm_s16le',aligned],job)
                     source=temp/f'effect-ducked-{i}.wav'
                     ff(['-i',aligned,'-i',temp/'voice-bed.wav','-filter_complex',

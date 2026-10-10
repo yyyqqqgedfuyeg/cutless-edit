@@ -79,7 +79,7 @@
 
 模板目前支持 `animation: pop / underline / fade / none / bounce / label / bracket / char-bounce / char-grow` 和 `y_ratio`。增加模板JSON后登记 `assets/manifest.json` 中的id/path/origin。新的动画机制需要先扩展渲染器并测试，不能只在JSON写一个不存在的效果名称。
 
-BGM由 `style.py --bgm ... --bgm-source ...` 导入任务并记录指纹，不在索引里保存密钥或外部账户信息。内置BGM也可通过 `--bgm-preset auto|素材id` 选择。重点事件可增加 `"sound":"soft-tick"`（也支持gentle-chime、soft-whoosh）与 `"sound_gain_db":-18`，音效在事件start播放，尾音允许延续到事件之后但会在成片末尾裁断。增益范围-40至-6dB；未指定sound不加音效。所有时间均为剪辑后时间。音效文件复制到任务并保存指纹。
+BGM由 `style.py --bgm ... --bgm-source ...` 导入任务并记录指纹，不在索引里保存密钥或外部账户信息。内置BGM也可通过 `--bgm-preset auto|素材id` 选择。重点事件可增加 `"sound":"soft-tick"`（也支持gentle-chime、soft-whoosh）与 `"sound_gain_db":-18`，音效在事件start播放，尾音允许延续到事件之后但会在成片末尾裁断。增益范围-40至-6dB；普通事件未指定sound不加音效；通过逐项展开讲解校验的 expanded-point 事件未指定sound时自动添加 ding-ding-ding，音效与缩放共用事件起点，音效不越过事件end。所有时间均为剪辑后时间。音效文件复制到任务并保存指纹。
 
 
 ## 逐项展开讲解事件

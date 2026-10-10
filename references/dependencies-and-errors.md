@@ -11,7 +11,7 @@
 | Pillow >=10,<13 | 字体实际字宽、TTC字体子集与圆角背景尺寸 |
 | FFmpeg + FFprobe | 编解码、探测、降噪、剪辑、混音、字幕；不能只装imageio的简版二进制 |
 | libass / libx264 / libmp3lame / AAC | ASS字幕、H.264成片、MP3上传音频与AAC音轨 |
-| fontconfig + 中文字体 | 按字体名称找到实际字体；默认Noto Sans CJK SC，需能解析到正确字体族 |
+| fontconfig + 中文字体 | 按字体名称找到实际字体；默认得意黑（Smiley Sans）由 assets/fonts 随包提供，度量及渲染均直接加载；自定义字体需能解析到正确字体族 |
 
 FFmpeg还需PCM、MJPEG、PNG编码器及 `afftdn`、`astats`、`silencedetect`、`loudnorm`、`ass`、`sidechaincompress`、`zoompan`、`eq`、`colorbalance`、`alimiter`、`amix`、`apad`、`adelay`、`aresample` 等滤镜。doctor逐项报告缺失，不只检查命令是否存在。当前环境FFmpeg 4.2.7已完成渲染测试；其他构建以doctor和实际导出验证为准。
 
@@ -79,7 +79,6 @@ agent应直接说明失败原因、停在哪一步、保留了什么、恢复条
 
 ```bash
 python scripts/doctor.py
-python -m unittest discover -s scripts -p 'test_*.py' -q
 ```
 
-测试使用临时合成素材和模拟API响应，覆盖实际FFmpeg导出、字幕动画位移/放大、时间轴锁定、校对记录门禁、额度/欠费/限流反馈、任务续查、提交超时防重复。不会加载真实.env或发送真实云端请求。人工/agent仍需对实际视频进行听感检查和逐条字幕语义校对。
+doctor 只检查本地依赖，不加载真实.env或发送云端请求。实际视频仍需完成导出校验、听感检查和逐条字幕语义校对。

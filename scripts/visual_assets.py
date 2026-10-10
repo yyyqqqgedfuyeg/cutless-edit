@@ -46,7 +46,10 @@ def font_metrics(font, bold=True):
     from pathlib import Path
     import subprocess
     from PIL import ImageFont
-    path=Path(font);index=0
+    path=(SKILL/'assets/fonts/SmileySans-Oblique.ttf') if font in {'Smiley Sans','Smiley Sans Oblique'} else Path(font)
+    index=0
+    if font in {'Smiley Sans','Smiley Sans Oblique'} and not path.is_file():
+        raise ValueError('缺少随包字体 assets/fonts/SmileySans-Oblique.ttf，请恢复字体文件')
     if not path.is_file():
         try:
             resolved=subprocess.check_output(['fc-match','-f','%{file}\n%{index}',
