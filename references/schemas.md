@@ -88,18 +88,18 @@ BGM由 `style.py --bgm ... --bgm-source ...` 导入任务并记录指纹，不�
 
 ```json
 [
-  {"start":3.2,"end":12.4,"template":"expanded-point","sequence_group":"岗位分类","point_index":1,
+  {"start":3.2,"end":12.4,"zoom_end":4.5,"zoom_intro_quote":"第一类，对应观点","template":"expanded-point","sequence_group":"岗位分类","point_index":1,
    "expanded_explanation":true,"script_quote":"第一类，对应观点及随后完整讲解原文",
    "reason":"第一项包含独立观点、说明与例子，并非一句话枚举",
-   "sound":"ding-ding-ding","sound_gain_db":-24,"zoom":1.2,"zoom_transition_seconds":0.25},
-  {"start":13.1,"end":22.0,"template":"expanded-point","sequence_group":"岗位分类","point_index":2,
+   "sound":"ding-ding-ding","sound_gain_db":-24,"zoom":1.2},
+  {"start":13.1,"end":22.0,"zoom_end":14.6,"zoom_intro_quote":"第二类，对应观点","template":"expanded-point","sequence_group":"岗位分类","point_index":2,
    "expanded_explanation":true,"script_quote":"第二类，对应观点及随后完整讲解原文",
    "reason":"第二项也有独立展开说明，与前项组成逐项讲解",
-   "sound":"swish","sound_gain_db":-24,"zoom":1.2,"zoom_transition_seconds":0.25}
+   "sound":"swish","sound_gain_db":-24,"zoom":1.2}
 ]
 ```
 
-同组至少两项，point_index按出现顺序递增、不重复；每项至少1秒只是技术下限，不能代替agent语义判断。agent必须确认每项独立展开，简单“第一、第二、第三”一句话列举不触发。引文需真实存在于当前原稿。事件start对齐锁定后真实字词起点（容差一帧或40ms），end为该项讲解结束，事件不能重叠。固定居中放大1.20倍，平滑推进默认0.25秒，允许0.08–1秒；保持至end，end起立即恢复1.00倍。音效优先ding-ding-ding，轻转接可选swish，每项仅一个。默认-24dB、允许-40至-18dB，实测限制在该段人声RMS的25%及峰值的40%以内，再通过侧链避让；不能宣称这些数值代替试听。独立文字效果不输出。
+同组至少两项，point_index按出现顺序递增、不重复；每项至少1秒只是技术下限，不能代替agent语义判断。agent必须确认每项独立展开，简单“第一、第二、第三”一句话列举不触发。引文需真实存在于当前原稿。事件start对齐锁定后真实字词起点（容差一帧或40ms），end为该项讲解结束，事件不能重叠。固定居中放大1.20倍，推进动画覆盖引出语时长，无独立保持阶段，最后一个有效帧达到120%，下一帧恢复100%；zoom_transition_seconds由渲染器规范为zoom_end-start，不能用旧250ms推进后保持的策略；zoom_end为“序号＋简短标题”引出语说完的真实字词结束时间；start < zoom_end <= end，需提供该段原稿前缀引文zoom_intro_quote。只在引出语期间放大，zoom_end起立即恢复1.00倍，后续展开说明保持原比例。end仍表示完整观点讲解结束，用于语义范围及音效尾音截断，不控制缩放持续时长。旧记录缺少这两个字段时须重新审阅，不自动沿用整段保持。音效优先ding-ding-ding，轻转接可选swish，每项仅一个。默认-24dB、允许-40至-18dB，实测限制在该段人声RMS的25%及峰值的40%以内，再通过侧链避让；不能宣称这些数值代替试听。独立文字效果不输出。
 
 ## 无标记原稿的重点词审批
 
