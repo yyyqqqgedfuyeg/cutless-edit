@@ -59,7 +59,9 @@ def main(stage=None):
     if stage=='review_edits':parser.add_argument('--reviews',required=True,help='agent填写的决策JSON列表')
     if stage=='review_subtitles':parser.add_argument('--reviews',required=True,help='逐条引用原稿、确认文字及对齐的校对JSON')
     if stage=='review_points':parser.add_argument('--review',required=True,help='agent全文语义审阅的逐项讲解判定及完整清单')
-    if stage=='build_timeline':parser.add_argument('--speed',type=float,default=1.3,help='锁轨前设置全片速度，默认1.3倍；保留音高')
+    if stage=='build_timeline':
+        parser.add_argument('--speed',type=float,default=1.3,help='锁轨前设置正文速度，默认1.3倍；保留音高')
+        parser.add_argument('--source-buffer',type=float,default=.35,help='首尾从原片保留的缓冲秒数，默认0.35；原速，0关闭')
     if stage=='preview_cuts':parser.add_argument('--context',type=float,default=1.5)
     if stage=='subtitles':
         parser.add_argument('--resplit',action='store_true',help='按真实字词重新断句；使旧文字校对失效')

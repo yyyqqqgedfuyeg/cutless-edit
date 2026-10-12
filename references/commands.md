@@ -245,6 +245,12 @@ agent审阅全文后，先准备 [point-review.md](point-review.md) 的判定文
 
 输出 `style/style.json`、`overlay.ass`。重点事件不能重叠；普通事件缩放不超过1.08倍，逐项展开讲解使用 `expanded-point` 固定1.20倍。`natural` 仅轻调对比度和饱和度，不是自动白平衡修复；默认 `auto` 按画幅选择 `portrait-fresh` 或 `landscape-neutral`，不合适时明确使用 `--grade none`。素材索引见 `assets/manifest.json`。不提供BGM时不联网搜索或自行下载音乐。
 
+## 原片首尾缓冲（锁轨前）
+
+`build_timeline.py --speed 1.3 --source-buffer 0.35` 默认在原片首个、末个保留字词前后各留0.35秒，向上按原片整帧对齐；`--source-buffer 0` 可按用户要求关闭。缓冲保留真实连续画面及原声，以原速播放，正文速度不变。低音量删除决策只用于正文，构建时恢复受保护的首尾区间，必要时也恢复被低音量剪掉的首尾字词尾部。原片可用时长不足会记录实际保留量，不补静帧或静音。
+
+输出时间轴的 `source_buffers` 记录源区间、输出区间、实际可用时长及增加帧数；缓冲片段包含 `buffer_kind=head/tail`。字幕和特效按新时间轴映射。`check_rhythm.py` 用 `source_buffer_boundary` 标记完全落在缓冲区内的低音量候选；agent复核其保留作用，不能把静音检测结果直接再删掉。既有成片改缓冲须另建任务，从原片重新生成预览并校对首尾字幕时间，不修改原锁定记录。
+
 ## 13. 导出：render.py
 
 ```bash
