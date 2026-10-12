@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from common import digest, ff, probe, read, require_aliyun, write
 from point_review import require_review
-from point_effects import safe_sound_gain, validate_points
+from point_effects import safe_sound_gain, validate_points, duck_point_sound
 from finish_steps import video_filters, ass_header
 from visual_assets import asset_entry
 
@@ -82,11 +82,12 @@ def finish(args):
         ff(['-i',raw,'-af',f'atrim=duration={event["end"]-event["start"]},asetpts=PTS-STARTPTS,volume={gain}dB,adelay={delay}|{delay},apad,atrim=duration={timeline["duration"]}',
             '-t',timeline['duration'],'-c:a','pcm_s16le',aligned],job)
         ducked=work/f'ducked-{i}.wav'
-        ff(['-i',aligned,'-i',voice,'-filter_complex','[0:a][1:a]sidechaincompress=threshold=0.005:ratio=20:attack=5:release=80[a]',
-            '-map','[a]','-t',timeline['duration'],'-c:a','pcm_s16le',ducked],job)
+        sound_duration=float(probe(raw)['format']['duration'])
+        levels=duck_point_sound(aligned,voice,ducked,timeline['duration'],
+            event['start'],min(event['end'],event['start']+sound_duration),job)
         beds.append(ducked)
         event['applied_sound']={'asset_sha256':digest(source),'gain_db':gain,'delay_ms':delay,
-            'sidechain':True,'ducked_sha256':digest(ducked)}
+            'sidechain':True,'ducked_sha256':digest(ducked),'levels':levels}
     mixargs=['-i',voice]
     for bed in beds:mixargs+=['-i',bed]
     count=len(beds)+1

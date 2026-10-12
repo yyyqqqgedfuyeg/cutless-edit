@@ -19,7 +19,7 @@
 }
 ```
 
-没有逐项结构时使用 `assessment=no_expanded_points`、`points=[]` 和具体理由。时间全部是变速后的成片秒数；使用真实字词起点，引用必须来自当前用户原稿。同组至少两项。缩放固定 1.2；音效缺省叮叮叮、-24dB，范围 -40 至 -18dB，自动测量限制与侧链避让。
+没有逐项结构时使用 `assessment=no_expanded_points`、`points=[]` 和具体理由。时间全部是变速后的成片秒数；使用真实字词起点，引用必须来自当前用户原稿。同组至少两项。缩放固定 1.2；音效缺省叮叮叮、-24dB，范围 -40 至 -18dB，自动测量限制与侧链避让。侧链保留-3dB干声下限；渲染时逐项测量实际播放窗口的前后RMS、人声RMS及衰减，超过3.2dB容差即拒绝导出。正常流程记录 `qc/point-sound-levels.json`，既有视频补效果记录 `completion/verification.json` 的 `events[].applied_sound.levels`。这些数值不等于已完成实际试听。
 
 ```bash
 python scripts/review_points.py --job /path/job --review /path/point-review.json

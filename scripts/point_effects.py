@@ -82,3 +82,35 @@ def safe_sound_gain(sound_path,voice_path,start,end,requested_db):
     ceilings=[10**(requested_db/20),voice_peak*.4/effect_peak]
     if effect_rms:ceilings.append(voice_rms*.25/effect_rms)
     return max(-100,20*math.log10(max(1e-5,min(ceilings))))
+
+
+def duck_point_sound(aligned, voice, output, duration, start, end, job=None):
+    """Duck cues without erasing them: retain a -3dB dry floor, then measure it."""
+    import array
+    import wave
+    from common import ff
+    dry=10**(-3/20)
+    graph=(f'[0:a]asplit=2[dry][wet];'
+        '[wet][1:a]sidechaincompress=threshold=0.1:ratio=2:attack=5:release=80[duck];'
+        f'[dry][duck]amix=inputs=2:weights={dry} {1-dry}:duration=first:dropout_transition=0[a]')
+    ff(['-i',aligned,'-i',voice,'-filter_complex',graph,'-map','[a]',
+        '-t',duration,'-c:a','pcm_s16le',output],job)
+    def rms(path):
+        with wave.open(str(path),'rb') as source:
+            if source.getsampwidth()!=2:raise ValueError('音效响度检查需16位PCM')
+            rate=source.getframerate()
+            source.setpos(min(source.getnframes(),round(start*rate)))
+            samples=array.array('h',source.readframes(max(0,round((end-start)*rate))))
+            import sys
+            if sys.byteorder!='little':samples.byteswap()
+            return math.sqrt(sum(v*v for v in samples)/max(1,len(samples)))/32768
+    before,after,speech=rms(aligned),rms(output),rms(voice)
+    if before<=0 or after<=0:raise ValueError('观点触发窗口缺少音效，禁止导出')
+    reduction=20*math.log10(before/after)
+    if reduction>3.2 or reduction<-.2:
+        raise ValueError('侧链音效衰减异常，禁止交付几乎听不见的提示音')
+    return {'pre_duck_rms_dbfs':20*math.log10(before),
+        'post_duck_rms_dbfs':20*math.log10(after),'duck_reduction_db':reduction,
+        'voice_rms_dbfs':20*math.log10(max(speech,1e-9)),
+        'measurement_start':start,'measurement_end':end,'max_duck_db':3,
+        'auditory_review_completed':False}
