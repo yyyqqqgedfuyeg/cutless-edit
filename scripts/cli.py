@@ -4,6 +4,7 @@ import sys
 
 import asr_steps
 import edit_steps
+import pause_analysis
 import finish_steps
 import media_steps
 import caption_review
@@ -15,6 +16,7 @@ FUNCTIONS = {
     'denoise':media_steps.denoise,'transcribe':asr_steps.transcribe,
     'preview_subtitles':asr_steps.preview_subtitles,'analyze_edits':edit_steps.analyze_edits,
     'review_edits':edit_steps.review_edits,'build_timeline':edit_steps.build_timeline,
+    'check_rhythm':pause_analysis.check_rhythm,
     'preview_cuts':edit_steps.preview_cuts,'lock_timeline':edit_steps.lock_timeline,
     'subtitles':finish_steps.subtitles,'style':finish_steps.style,
     'render':finish_steps.render,'verify_export':finish_steps.verify_export,
@@ -54,15 +56,17 @@ def main(stage=None):
         parser.add_argument('--user-response',help='用户实际明确审批回复，不能由agent编造')
     if stage=='review_edits':parser.add_argument('--reviews',required=True,help='agent填写的决策JSON列表')
     if stage=='review_subtitles':parser.add_argument('--reviews',required=True,help='逐条引用原稿、确认文字及对齐的校对JSON')
+    if stage=='build_timeline':parser.add_argument('--speed',type=float,default=1.3,help='锁轨前设置全片速度，默认1.3倍；保留音高')
     if stage=='preview_cuts':parser.add_argument('--context',type=float,default=1.5)
     if stage=='subtitles':
+        parser.add_argument('--resplit',action='store_true',help='按真实字词重新断句；使旧文字校对失效')
         parser.add_argument('--emphasis',help='句内强调JSON；字号/颜色/样式；空列表清除')
         parser.add_argument('--corrections',help='[{id,text,reason,start?,end?}]')
         parser.add_argument('--terms',help='不拆行术语JSON列表')
         parser.add_argument('--bottom',type=float,help='字幕块底部纵坐标/画面高度')
         parser.add_argument('--font-size',type=float,help='字号/画面宽度')
         parser.add_argument('--font',help='已安装字体名称')
-        parser.add_argument('--line-chars',type=int,help='每行字符上限；最多两行')
+        parser.add_argument('--line-chars',type=int,help='单行目标字符数；保护完整词组时允许小幅浮动')
         parser.add_argument('--text-color',help='文字颜色 #RRGGBB 或 #RRGGBBAA（AA为不透明度）')
         parser.add_argument('--outline-color',help='描边颜色 #RRGGBB 或 #RRGGBBAA')
         parser.add_argument('--outline-width',type=float,help='描边粗细0–12像素；0关闭')

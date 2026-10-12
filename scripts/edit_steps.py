@@ -1,3 +1,4 @@
+from pause_analysis import analyze_audio, verified_low_volume_cut
 from difflib import SequenceMatcher
 import math
 from pathlib import Path
@@ -28,8 +29,12 @@ def analyze_edits(a):
         if end-start>profile['gap_threshold']:
             before=''.join(w['text'] for w in words[max(0,i-4):i+1])
             after=''.join(w['text'] for w in words[i+1:i+7])
-            emotional=bool(re.search('但是|不过|然而|所以|关键|注意|最后|第一|第二|第三|第四',after))
-            add('pause',start,end,'keep' if emotional else 'shorten',before+' 【停顿】 '+after)
+            add('pause',start,end,'shorten',before+' 【停顿】 '+after+'；agent检查是否具有表达作用')
+    acoustic=analyze_audio(job,words)
+    for item in acoustic['intervals']:
+        add('acoustic_pause',item['start'],item['end'],'drop',
+            item['context']+'；实测低于-35dBFS，可整段剪掉，不保留起尾音')
+        candidates[-1].update(acoustic_id=item['id'],action='drop',reason='用户授权按非常低的音量剪辑：实测低于-35dBFS，整段删除')
     for i,word in enumerate(words):
         if word['text'].strip() in {'嗯','呃','额'}:
             start=max(0,word['begin_time']/1000-.05)
@@ -56,7 +61,7 @@ def analyze_edits(a):
     write(job/'script_comparison.json',{'note':'文本差异仅用于定位；合理口语改写不判为口误。',
         'differences':differences})
     write(job/'decisions.json',{'version':1,'profile':profile,'source_sha256':p['source_sha256'],
-        'words_sha256':digest(job/'asr/words.json'),'candidates':candidates})
+        'words_sha256':digest(job/'asr/words.json'),'acoustic_sha256':digest(job/'qc/pauses.json'),'candidates':candidates})
     print(f'生成 {len(candidates)} 个候选；agent结合原稿、上下文和试听，通过 review_edits.py 写入决定')
 
 
@@ -79,9 +84,11 @@ def review_edits(a):
             raise ValueError('每项需 action=keep/drop/shorten 和非空 reason')
         if change['action']=='shorten':
             keep=change.get('keep_seconds',data['profile']['ordinary_pause'])
-            if not .12<=keep<c['end']-c['start']:
-                raise ValueError('缩短后停顿至少0.12秒且必须短于原停顿')
+            minimum=0 if c.get('acoustic_id') else .12
+            if not minimum<=keep<c['end']-c['start']:
+                raise ValueError('保留时长必须短于原停顿；低音量区间可保留0秒，其他候选至少0.12秒')
             c['keep_seconds']=keep
+        if 'acoustic_review' in change:c['acoustic_review']=change['acoustic_review']
         c.update(action=change['action'],reason=change['reason'])
     write(job/'decisions.json',data)
     print(f'已记录复核；剩余 {sum(c["action"]=="undecided" for c in data["candidates"])} 项')
@@ -97,17 +104,28 @@ def build_timeline(a):
         raise ValueError('决策绑定的素材或转写已改动')
     if any(c['action']=='undecided' for c in data['candidates']):
         raise ValueError('仍有未复核候选；通过review_edits记录keep/drop/shorten')
+    speed=getattr(a,'speed',1.3)
+    if isinstance(speed,bool) or not math.isfinite(speed) or not .5<=speed<=2:
+        raise ValueError('speed需为0.5到2之间的有限数值')
     fps=p['fps']; total_frames=math.floor(p['duration']*fps+1e-5)
     words=read(job/'asr/words.json')['words']
+    if data.get('acoustic_sha256') and data['acoustic_sha256']!=digest(job/'qc/pauses.json'):
+        raise ValueError('音频停顿分析已改变，需重新复核决策')
+    if data.get('acoustic_sha256') and read(job/'qc/pauses.json')['audio_sha256']!=digest(job/p['active_audio']):
+        raise ValueError('音频停顿分析属于旧音轨，需重新分析复核')
     cuts=[]
     for c in data['candidates']:
         if c['action']=='keep':continue
         start,end=c['start'],c['end']
         if c['action']=='shorten':
             start+=c['keep_seconds']*.6;end-=c['keep_seconds']*.4
+        left=math.ceil(start*fps-1e-6);right=math.floor(end*fps+1e-6)
+        silent_cut=verified_low_volume_cut(job,c,left/fps,right/fps) if c.get('acoustic_id') else False
+        if c.get('acoustic_id') and not silent_cut:
+            raise ValueError(f'决策 {c["id"]} 音频证据无效，或切点超出实测低音量范围')
         for w in words:
             wa,wb=w['begin_time']/1000,w['end_time']/1000
-            if start<wb and end>wa and not (start<=wa+.0001 and end>=wb-.0001):
+            if start<wb and end>wa and not (start<=wa+.0001 and end>=wb-.0001) and not silent_cut:
                 raise ValueError(f'决策 {c["id"]} 切入字词 {w["text"]}，请调整手工边界')
         left=math.ceil(start*fps-1e-6);right=math.floor(end*fps+1e-6)
         if right>left:cuts.append((left,right))
@@ -118,14 +136,15 @@ def build_timeline(a):
     segments=[];cursor=0;out=0
     for left,right in merged+[[total_frames,total_frames]]:
         if left>cursor:
-            count=left-cursor
+            source_count=left-cursor
+            count=max(1,round(source_count/speed))
             segments.append({'source_start_frame':cursor,'source_end_frame':left,
-                'output_start_frame':out,'frames':count})
+                'output_start_frame':out,'frames':count,'source_frames':source_count})
             out+=count
         cursor=max(cursor,right)
     if not segments:raise ValueError('全部素材被删除')
     timeline={'version':1,'fps':fps,'source_sha256':p['source_sha256'],
-        'total_frames':out,'duration':out/fps,'speed':1.0,'segments':segments,
+        'total_frames':out,'duration':out/fps,'speed':speed,'segments':segments,
         'decisions_sha256':digest(job/'decisions.json')}
     write(job/'timeline.json',timeline)
     print(f'计划 {len(segments)} 段，{out/fps:.3f}秒；先 preview_cuts.py，再 lock_timeline.py')
@@ -136,7 +155,7 @@ def preview_cuts(a):
     timeline=read(job/'timeline.json');fps=timeline['fps']
     if timeline['decisions_sha256']!=digest(job/'decisions.json'):
         raise ValueError('决策已更新，请重建时间轴')
-    segments=timeline['segments'];items=[]
+    segments=timeline['segments'];items=[];speed=timeline.get('speed',1.0)
     for i,(left,right) in enumerate(zip(segments,segments[1:])):
         before=left['source_end_frame']/fps
         after=right['source_start_frame']/fps
@@ -146,7 +165,8 @@ def preview_cuts(a):
             f'[1:a]atrim=start={start}:end={before},asetpts=PTS-STARTPTS[a0];'
             f'[0:v]trim=start={after}:end={end},setpts=PTS-STARTPTS[v1];'
             f'[1:a]atrim=start={after}:end={end},asetpts=PTS-STARTPTS[a1];'
-            '[v0][a0][v1][a1]concat=n=2:v=1:a=1[joined][a];')
+            f'[v0][a0][v1][a1]concat=n=2:v=1:a=1[rawv][rawa];'
+            f'[rawv]setpts=PTS/{speed}[joined];[rawa]atempo={speed}[a];')
         rotation=f'transpose={p["rotate"]},' if p['rotate']!='auto' else ''
         filters+='[joined]'+rotation+'scale=480:-2[v]'
         filename=f'cut-{i+1:03}.mp4'
@@ -180,6 +200,15 @@ def lock_timeline(a):
         raise ValueError('保留停顿的复核清单缺失或重复')
     if not all(x.get('reviewed') is True for x in review['cuts']+review['retained_pauses']):
         raise ValueError('切口或保留停顿未全部复核')
+    if read(job/'decisions.json').get('acoustic_sha256'):
+        rhythm=read(job/'previews/rhythm.json')
+        if rhythm['timeline_sha256']!=digest(job/'timeline.json') or rhythm['voice_sha256']!=digest(job/'previews/rhythm-voice.wav'):
+            raise ValueError('纯人声节奏复核过期，重跑check_rhythm.py')
+        if not rhythm.get('whole_track_reviewed') or not rhythm.get('note','').strip():
+            raise ValueError('未完成变速后全片纯人声节奏复核')
+        for item in rhythm['remaining_pauses']:
+            if item.get('reviewed') is not True or item.get('classification') not in {'section','expressive','false_positive'} or not item.get('reason','').strip():
+                raise ValueError('剩余长停顿需说明保留作用；普通卡顿必须重剪后重新检查')
     write(job/'timeline.lock.json',{'sha256':lock_payload(job),'review_sha256':digest(job/'previews/review.json'),
         'note':review['note']})
     print('时间轴已锁定；后续字幕与风格处理不得改变剪辑时序')
