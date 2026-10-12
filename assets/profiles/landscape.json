@@ -1,8 +1,8 @@
 {
   "layout": "landscape",
-  "gap_threshold": 0.75,
-  "ordinary_pause": 0.4,
-  "section_pause": 0.65,
+  "gap_threshold": 0.35,
+  "ordinary_pause": 0.26,
+  "section_pause": 0.455,
   "emotional_pause": "preserve_by_semantic_review",
   "emphasis_zoom": 1.025,
   "emphasis_font_ratio": 0.034,
@@ -10,7 +10,7 @@
     "font": "Smiley Sans Oblique",
     "font_size_ratio": 0.066,
     "bottom_y_ratio": 0.91,
-    "line_chars": 12,
+    "line_chars": 16,
     "max_lines": 1,
     "protected_phrases": [],
     "text_color": "#000000",
@@ -26,10 +26,13 @@
     "background": true,
     "background_color": "#FFFFFF",
     "background_radius": 18,
-    "background_padding": 12
+    "background_padding": 12,
+    "min_font_scale": 0.82,
+    "max_duration": 3.0
   },
   "style_defaults": {
     "grade": "landscape-neutral",
     "bgm": "calm-focus"
-  }
+  },
+  "speed": 1.3
 }

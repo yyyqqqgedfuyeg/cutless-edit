@@ -1,6 +1,6 @@
 # 可直接调用的分阶段命令
 
-当前字幕规则：默认使用随包提供的得意黑（Smiley Sans）粗体，字号竖屏0.144、横屏0.066，只显示单行白色圆角矩形底黑字（圆角18px）。原稿 `【】` 标记的对应口播文字以1.35倍字号、黄字黑色描边显示，括号不显示。旧任务的颜色、阴影、动画和手动强调配置会被清除，独立花字轨不再输出文字。长字幕必须按真实字词时间戳拆成短片段，已有字幕溢出会报错，不自动换行或缩小字体。SRT只保存文字与时间，视觉样式由ASS/视频保留。
+当前字幕规则：默认使用随包提供的得意黑（Smiley Sans）粗体，字号竖屏0.144、横屏0.066，只显示单行白色圆角矩形底黑字（圆角18px）。原稿 `【】` 标记的对应口播文字以1.35倍字号、黄字黑色描边显示，括号不显示。旧任务的颜色、阴影、动画和手动强调配置会被清除，独立花字轨不再输出文字。长字幕先按语义及真实字词边界拆短，日期、数字单位及保护词不拆散；允许单条字号在82%–100%内适配并记录font_scale，仍溢出则报错要求重拆，不换行。旧字幕用 --resplit 重建，随后重新逐条校对。SRT只保存文字与时间，视觉样式由ASS/视频保留。
 
 以下均为实际脚本。`cli.py 阶段名` 与同名独立脚本等价。所有脚本支持 `--help`。在 Windows 将 Python 和路径替换成本机实际值；Python 内部使用参数列表调用 FFmpeg，不拼接用户输入为 shell 命令。
 
@@ -54,7 +54,7 @@ Windows 可在字幕命令中指定 `--font 'Microsoft YaHei'`。可用 `FFMPEG_
 "$CUTLESS_PY" "$CUTLESS_SKILL/scripts/audio_qc.py" --job "$CUTLESS_JOB"
 ```
 
-输入：当前音轨。输出：`qc/audio.json`、3个定位试听片段。指标包含峰值、疑似削波样本比例、低能量窗口及50ms窗口能量。低能量窗口不等于真实噪声底；不输出伪造SNR。噪声、混响、爆音等需结合试听辨别。没有可靠VAD时，气口仅用字词间隔筛候选，不能把VAD能力冒充为已安装。
+输入：当前音轨。输出：`qc/audio.json`、3个定位试听片段。指标包含峰值、疑似削波样本比例、低能量窗口及50ms窗口能量。低能量窗口不等于真实噪声底；不输出伪造SNR。噪声、混响、爆音等需结合试听辨别。无需VAD即可用FFmpeg音量检测区间，ASR用于对照；不把音量检测冒充VAD。
 
 ## 3. 降噪：denoise.py
 
@@ -128,7 +128,7 @@ apad=pad_dur=0.2,afftdn=nr=6:nf=-50:tn=1,atrim=duration=DURATION,asetpts=PTS-STA
 "$CUTLESS_PY" "$CUTLESS_SKILL/scripts/analyze_edits.py" --job "$CUTLESS_JOB"
 ```
 
-输出 `decisions.json` 和 `script_comparison.json`。默认扫描首尾准备区、超过横竖屏阈值的字词间空白、独立填充词和完全相同的长句。语义口误和不完整重说由agent结合原稿补充；脚本不伪称能自动理解所有语义。所有候选初始 `action=undecided`，不得直接把建议动作全部转成已确认。
+输出 `decisions.json` 和 `script_comparison.json`。同时输出 qc/pauses.json；扫描首尾准备区、原片超过0.35秒的字词间空白、实际音频持续至少0.12秒、低于-35dBFS的区间（-30/-35/-40dB多阈值，包括ASR词内空白）、独立填充词和完全相同的长句。语义口误和不完整重说由agent结合原稿补充；脚本不伪称能自动理解所有语义。低音量acoustic_pause按用户授权自动action=drop，不保留起尾音；其他语义候选初始action=undecided，不自动确认。
 
 ## 7. 写入决策：review_edits.py
 
@@ -144,10 +144,10 @@ apad=pad_dur=0.2,afftdn=nr=6:nf=-50:tn=1,atrim=duration=DURATION,asetpts=PTS-STA
 ## 8. 建立时间轴：build_timeline.py
 
 ```bash
-"$CUTLESS_PY" "$CUTLESS_SKILL/scripts/build_timeline.py" --job "$CUTLESS_JOB"
+"$CUTLESS_PY" "$CUTLESS_SKILL/scripts/build_timeline.py" --job "$CUTLESS_JOB" --speed 1.3
 ```
 
-输出 `timeline.json`：原片帧区间、输出帧起点、段长、总帧数和决策指纹。切口向待删除范围内部对齐帧；拒绝切入字词的区间。保留原语速，不靠重采样改变节奏。
+输出 `timeline.json`：原片帧区间、输出帧起点、段长、总帧数和决策指纹。切口向待删除范围内部对齐帧；拒绝切入字词的区间。精剪后统一1.3倍速；--speed可按用户要求覆盖。每段分别记录source_frames和输出frames，输出长度按帧量化；音频用atempo保持音高，字幕和音效共用各段量化后时间映射。
 
 ## 9. 拼接预览：preview_cuts.py
 
@@ -156,6 +156,14 @@ apad=pad_dur=0.2,afftdn=nr=6:nf=-50:tn=1,atrim=duration=DURATION,asetpts=PTS-STA
 ```
 
 输出每个切口前后真实拼接的 `previews/cut-*.mp4` 和复核清单 `previews/review.json`。检查截音、爆点、跳帧、语义和保留停顿。填写每项 `reviewed`、结论及 `whole_track_reviewed`。这个记录由实际执行检查的agent填写，不代表必需用户逐项审批。
+
+## 9b. 变速后纯人声节奏验收：check_rhythm.py
+
+```bash
+"$CUTLESS_PY" "$CUTLESS_SKILL/scripts/check_rhythm.py" --job "$CUTLESS_JOB"
+```
+
+在锁轨前按timeline实际分段速度拼接人声，输出previews/rhythm-voice.wav及rhythm.json；检查全片及持续至少0.12秒的剩余低音量区间。agent逐项填写reviewed=true、classification=section/expressive/false_positive以及具体reason，最后填写whole_track_reviewed及note。普通卡顿应重剪，不允许用上述分类掩盖；低音量默认整段剪掉，不强制保留气口或起尾音。改时间轴后须重跑此步骤；无试听能力不得伪造检查完成。
 
 ## 10. 锁定：lock_timeline.py
 
@@ -171,7 +179,7 @@ apad=pad_dur=0.2,afftdn=nr=6:nf=-50:tn=1,atrim=duration=DURATION,asetpts=PTS-STA
 # 首次从阿里字词时间戳生成待校对草稿，尚不能导出最终成片
 "$CUTLESS_PY" "$CUTLESS_SKILL/scripts/subtitles.py" --job "$CUTLESS_JOB"
 
-# 依据实际人声校对，并设置全片一致的位置、字号、不拆分术语
+# 依据实际人声校对，并设置全片一致的位置、基础字号、不拆分术语
 "$CUTLESS_PY" "$CUTLESS_SKILL/scripts/subtitles.py" --job "$CUTLESS_JOB" \
   --corrections /path/corrections.json --terms /path/terms.json \
   --bottom 0.82 --font-size 0.052 --line-chars 14 --font 'Noto Sans CJK SC'
@@ -189,7 +197,7 @@ apad=pad_dur=0.2,afftdn=nr=6:nf=-50:tn=1,atrim=duration=DURATION,asetpts=PTS-STA
 
 默认外观保存在横竖屏profile的 `subtitle` 对象中：`text_color`、`outline_color`、`outline_width`、`shadow_color`、`shadow_depth`、`bold`。每个任务的最终设置保存在 `subtitles/layout.json`，再次调用未指定的参数保持原值。更改profile影响新任务及旧任务缺失的字段；已有任务需通过命令行或其layout.json调整。改样式后重跑 `render.py`、`verify_export.py` 更新成片。此配置作用于基础字幕；重点花字仍使用独立样式轨。
 
-`bottom` 是字幕块下边缘相对画面高度的位置，数值增大向下移动；`font-size` 是字号/画面宽度。横屏默认0.91和0.066，竖屏默认0.82和0.144。默认单行上限；术语不能跨行，不够放就修改正式字幕断句。校时只允许每次在原字幕边界±250ms内调整并检查重叠，不改视频切点。跨越大量时间的纠错应重新对齐，不得用小步累加逃避复核。
+`bottom` 是字幕块下边缘相对画面高度的位置，数值增大向下移动；`font-size` 是字号/画面宽度。横屏默认0.91和0.066，竖屏默认0.82和0.144。默认单行上限；line-chars是拆句目标长度，允许小幅浮动以保护完整短语。基础字号不够时单条适配到82%，仍不够放就修改正式字幕断句。校时只允许每次在原字幕边界±250ms内调整并检查重叠，不改视频切点。跨越大量时间的纠错应重新对齐，不得用小步累加逃避复核。
 
 输出 `subtitles/captions.json`、`layout.json`、`draft.srt`、`draft.ass` 和生成指纹。草稿不能当作最终字幕交付。SRT不包含字体与位置，排版以ASS/烧录成片为准。
 

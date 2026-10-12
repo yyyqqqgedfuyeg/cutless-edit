@@ -105,6 +105,10 @@ def lock_payload(job):
         'asr_provenance': digest(job / 'asr/provenance.json'),
         'preview_srt': digest(job / 'asr/preview.srt'),
         'decisions': digest(job / 'decisions.json'), 'original_script': digest(job / 'script.txt')}
+    if read(job/'decisions.json').get('acoustic_sha256'):
+        binding['acoustic_analysis']=digest(job/'qc/pauses.json')
+        binding['rhythm_review']=digest(job/'previews/rhythm.json')
+        binding['rhythm_voice']=digest(job/'previews/rhythm-voice.wav')
     return fingerprint(binding)
 
 
@@ -147,3 +151,20 @@ def dimensions(p):
     if 'output_width' in p:
         return p['output_width'], p['output_height']
     return (1080, 1920) if p['layout'] == 'portrait' else (1920, 1080)
+
+
+def mapped_time(segment, seconds, fps):
+    left=segment['source_start_frame']/fps
+    source_frames=segment['source_end_frame']-segment['source_start_frame']
+    ratio=segment.get('frames',source_frames)/source_frames
+    return segment['output_start_frame']/fps+(seconds-left)*ratio
+
+
+def mapped_word(timeline,start,end):
+    # Acoustic cuts may shorten the silence included in an ASR word; keep its text.
+    spans=[];fps=timeline['fps']
+    for segment in timeline['segments']:
+        left=max(start,segment['source_start_frame']/fps)
+        right=min(end,segment['source_end_frame']/fps)
+        if right>left:spans.append((mapped_time(segment,left,fps),mapped_time(segment,right,fps)))
+    return (spans[0][0],spans[-1][1]) if spans else None

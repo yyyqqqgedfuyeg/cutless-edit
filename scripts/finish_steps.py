@@ -7,7 +7,8 @@ import wave
 
 from inline_emphasis import emphasized_text, emphasis_map, script_emphasis, single_line_layout
 
-from common import SKILL, check_ranges, digest, dimensions, ff, fingerprint, locked, probe, project, read, srt, stamp, write
+from caption_layout import split_words, fit_caption
+from common import mapped_time, mapped_word, SKILL, check_ranges, digest, dimensions, ff, fingerprint, locked, probe, project, read, srt, stamp, write
 from point_effects import validate_points, zoom_expression, safe_sound_gain
 from emphasis_review import approved_emphasis
 from caption_review import cue_hash, promote, require_final, review_binding
@@ -98,7 +99,7 @@ def subtitles(a):
         raise ValueError('字幕位置/字号/行长超出允许范围')
     if a.terms:layout['protected_phrases']=read(a.terms)
     captions_path=job/'subtitles/captions.json'
-    if captions_path.exists():
+    if captions_path.exists() and not getattr(a,'resplit',False):
         saved=read(captions_path)
         if saved['lock_sha256']!=lock_hash:raise ValueError('字幕属于另一时间轴')
         cues=saved['cues']
@@ -106,34 +107,14 @@ def subtitles(a):
         mapped=[]
         for word in read(job/'asr/words.json')['words']:
             start,end=word['begin_time']/1000,word['end_time']/1000
-            for segment in timeline['segments']:
-                left,right=segment['source_start_frame']/fps,segment['source_end_frame']/fps
-                if left-.0001<=start and end<=right+.0001:
-                    offset=segment['output_start_frame']/fps-left
-                    mapped.append({'start':start+offset,'end':end+offset,
-                        'text':word['text'],'punctuation':word.get('punctuation','')})
-                    break
+            times=mapped_word(timeline,start,end)
+            if times:
+                mapped.append({'start':times[0],'end':times[1],
+                    'text':word['text'],'punctuation':word.get('punctuation','')})
         if not mapped:raise ValueError('锁定轨道中没有完整字词')
         width,height=dimensions(p);size=round(width*layout['font_size_ratio'])
-        cues=[];chunk=[]
         original=(job/'script.txt').read_text(encoding='utf-8')
-        def fits(words):
-            candidate={'id':'candidate','text':''.join(w['text']+w['punctuation'] for w in words).rstrip('，。；')}
-            spans=script_emphasis(original,[candidate])['candidate']
-            box=emphasized_text(candidate['text'],spans,size,layout)[1]
-            return box[0]+2*layout.get('background_padding',12)<=width*.9
-        def flush():
-            if chunk:
-                cues.append({'id':f's{len(cues)+1:04}','start':chunk[0]['start'],
-                    'end':chunk[-1]['end'],'text':''.join(w['text']+w['punctuation'] for w in chunk).rstrip('，。；')})
-                chunk.clear()
-        for w in mapped:
-            length=sum(len(x['text'])+len(x['punctuation']) for x in chunk)
-            if chunk and (not fits(chunk+[w]) or length+len(w['text'])+len(w['punctuation'])>layout['line_chars'] or w['end']-chunk[0]['start']>5
-                    or w['start']-chunk[-1]['end']>.7):flush()
-            chunk.append(w)
-            if w['punctuation'] in {'。','！','？','；'}:flush()
-        flush()
+        cues=split_words(mapped,layout,width,size,original)
     if a.corrections:
         lookup={c['id']:c for c in cues}
         for correction in read(a.corrections):
@@ -160,12 +141,11 @@ def subtitles(a):
     for cue in cues:
         spans=emphasis.get(cue['id'],[])
         text=cue['text'].replace('\r','').replace('\n','')
-        decorated,box=emphasized_text(text,spans,size,layout)
-        if box[0]+2*layout.get('background_padding',12)>width*.9:
-            raise ValueError(f'{cue["id"]} 单行字幕超出安全宽度，请按真实字词边界重新拆句')
+        cue_size,decorated,box=fit_caption(text,spans,size,layout,width)
+        cue['font_scale']=round(cue_size/size,4)
         animation=subtitle_animation(layout,cue)
         lines.extend(rounded_background(text,cue['start'],cue['end'],width/2,
-            round(height*layout['bottom_y_ratio']),size,layout,layout['font'],layout.get('bold',True),box_size=box))
+            round(height*layout['bottom_y_ratio']),cue_size,layout,layout['font'],layout.get('bold',True),box_size=box))
         lines.append(f'Dialogue: 1,{stamp(cue["start"],True)},{stamp(cue["end"],True)},Default,,0,0,0,,{animation}{decorated}')
         final.append({**cue,'text':text})
     header=ass_header(width,height,layout['font'],size,layout['bottom_y_ratio'],
@@ -257,6 +237,22 @@ def video_filters(style_data,width,height,fps):
     return vf
 
 
+def render_segment(p,s,fps,width,height,source,audio,target,job):
+    start=s['source_start_frame']/fps;duration=s['frames']/fps
+    source_duration=(s['source_end_frame']-s['source_start_frame'])/fps
+    segment_speed=source_duration/duration
+    # Lossless intermediates; only the final delivery is lossy-encoded.
+    vf=([f'transpose={p["rotate"]}'] if p['rotate']!='auto' else [])
+    vf += [f'trim=duration={source_duration}',f'setpts=(PTS-STARTPTS)/{segment_speed}',f'fps={fps}',f'tpad=stop_mode=clone:stop_duration={1/fps}',f'trim=duration={duration}',f'scale={width}:{height}:force_original_aspect_ratio=decrease',
+        f'pad={width}:{height}:(ow-iw)/2:(oh-ih)/2','setsar=1']
+    fade=min(.006,duration/4)
+    ff(['-ss',start,'-i',source,'-ss',start,'-i',audio,
+        '-t',duration,'-map','0:v:0','-map','1:a:0','-vf',','.join(vf),
+        '-af',f'atrim=duration={source_duration},asetpts=PTS-STARTPTS,atempo={segment_speed},apad,atrim=duration={duration},afade=t=in:d={fade},afade=t=out:st={duration-fade}:d={fade}',
+        '-r',fps,'-c:v','libx264','-crf','0','-preset','ultrafast','-threads','2',
+        '-c:a','pcm_s16le','-ar','48000','-pix_fmt','yuv420p','-map_metadata','-1',target],job)
+
+
 def render(a):
     job=Path(a.job).resolve();timeline,lock_hash=locked(job);p=project(job)
     require_final(job)
@@ -274,18 +270,8 @@ def render(a):
     with tempfile.TemporaryDirectory(prefix='cutless-render-',dir=job) as temporary:
         temp=Path(temporary);entries=[]
         for i,s in enumerate(timeline['segments']):
-            start=s['source_start_frame']/fps;duration=s['frames']/fps
-            name=f'p{i:04}.mov'
-            # Lossless intermediates; only the final delivery is lossy-encoded.
-            vf=([f'transpose={p["rotate"]}'] if p['rotate']!='auto' else [])
-            vf += [f'scale={width}:{height}:force_original_aspect_ratio=decrease',
-                f'pad={width}:{height}:(ow-iw)/2:(oh-ih)/2','setsar=1']
-            fade=min(.006,duration/4)
-            ff(['-ss',start,'-i',job/p['source'],'-ss',start,'-i',job/p['active_audio'],
-                '-t',duration,'-map','0:v:0','-map','1:a:0','-vf',','.join(vf),
-                '-af',f'asetpts=PTS-STARTPTS,apad,atrim=duration={duration},afade=t=in:d={fade},afade=t=out:st={duration-fade}:d={fade}',
-                '-r',fps,'-c:v','libx264','-crf','0','-preset','ultrafast','-threads','2',
-                '-c:a','pcm_s16le','-ar','48000','-pix_fmt','yuv420p','-map_metadata','-1',temp/name],job)
+            duration=s['frames']/fps;name=f'p{i:04}.mov'
+            render_segment(p,s,fps,width,height,job/p['source'],job/p['active_audio'],temp/name,job)
             entries += [f"file '{name}'",f'duration {duration:.9f}']
             print(f'片段 {i+1}/{len(timeline["segments"])}',flush=True)
         (temp/'concat.txt').write_text('\n'.join(entries)+'\n',encoding='utf-8')

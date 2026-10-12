@@ -9,12 +9,12 @@
 ```json
 [
   {"id":"c0001","action":"keep","reason":"转折前的强调停顿，保留完整语气"},
-  {"id":"c0002","action":"shorten","keep_seconds":0.24,"reason":"普通句间吸气过长，保留前后发音余量"},
+  {"id":"c0002","action":"shorten","keep_seconds":0.26,"reason":"普通句间吸气过长，保留前后发音余量"},
   {"id":"m0001","kind":"manual","start":12.1,"end":14.9,"action":"drop","reason":"不完整的错误起句，后面有完整正确重录","context":"实际原文及对应后续重录位置"}
 ]
 ```
 
-动作只有 `keep` / `drop` / `shorten`。`keep_seconds` 至少0.12秒；shorten用于纯空白，不能包含有效人声。已有候选的时间范围不通过review命令修改：需要改变范围时保留旧候选并新增正确的manual范围，清楚说明替代关系。
+动作只有 `keep` / `drop` / `shorten`。一般候选keep_seconds至少0.12秒；实测低音量acoustic_pause允许drop或keep_seconds=0，不要求speech_free。已有候选的时间范围不通过review命令修改：需要改变范围时保留旧候选并新增正确的manual范围，清楚说明替代关系。
 
 ## 切口复核
 
@@ -112,3 +112,19 @@ BGM由 `style.py --bgm ... --bgm-source ...` 导入任务并记录指纹，不�
 ```
 
 items只包含要强调的cue，text必须和当前cue一致；spans只含text及可选occurrence，不接受自定义颜色或动画。agent负责语义选择，并向用户展示具体重点与上下文；脚本不会替agent挑重点。保存后处于待审批状态。明确批准才记录 `--decision approve --user-response 用户实际回复`；拒绝用reject并重提方案。审批记录由脚本保存方案指纹，原稿和cue绑定变化即失效。禁止自动批准、伪造用户回复、修改原稿添加【】绕过审批。已有【】时不运行此流程，遵循原标记。
+
+
+## 变速时间轴与字幕字号
+
+`timeline.speed` 默认1.3；每段 `source_frames` 是原片保留帧数，`frames` 是变速后量化的输出帧数，`output_start_frame` 累计输出帧。原片字词时间用每段 `frames/source_frames` 映射，音频采用该段实际量化速度，避免切口累计偏差。所有字幕与风格事件 start/end 均为成片秒数。`keep_seconds` 仍为原片秒数，1.3倍速下普通气口默认0.26秒（成片约0.20秒），段落切换0.455秒（成片约0.35秒）。
+
+字幕 `font_scale` 记录单条实际字号/基础字号，范围0.82–1.00，属于样式，不改变文字或时间校对绑定。需要改变断句时用 `subtitles.py --resplit`，重建真实字词分组并重新逐条校对；不沿用旧cue审批或校对记录。
+
+
+## 实际低音量与ASR词内剪辑
+
+analyze_edits自动生成kind=acoustic_pause、acoustic_id及action=drop，理由注明用户授权按低音量剪辑。qc/pauses.json记录policy=low-volume-cut-v1、low_volume_threshold_dbfs=-35、minimum_source_seconds=0.12及音轨指纹；decisions.json绑定报告SHA256。
+
+低于阈值的区间可整段删掉，不需要acoustic_review或speech_free确认，不要求完整尾音/起音，不留40ms余量。build_timeline仍验证报告指纹、音轨及删段范围，拒绝切到实测范围外。与其他候选重叠时保留一个删段决策，其他候选keep并说明由哪个候选覆盖；不能重复收紧。跨ASR词边界的剩余词通过保留片段映射时长，不改原始ASR。
+
+节奏复核使用previews/rhythm.json：持续至少0.12秒的剩余低音量默认继续剪；whole_track_reviewed仍只记录实际完成的审片，不能伪造试听。明确保留段落或表达停顿时写出原因；不允许以保护尾音、起音为由保留低音量。

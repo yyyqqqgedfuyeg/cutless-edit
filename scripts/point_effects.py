@@ -1,7 +1,7 @@
 """Validate agent-reviewed expanded explanations and build fixed-centre zooms."""
 import math
 import re
-from common import require_script
+from common import require_script, mapped_word
 
 POINT_SOUNDS={'ding-ding-ding','swish'}
 
@@ -14,10 +14,8 @@ def validate_points(events, job, timeline, words):
     starts=[];fps=timeline['fps']
     for word in words:
         start,end=word['begin_time']/1000,word['end_time']/1000
-        for segment in timeline['segments']:
-            left,right=segment['source_start_frame']/fps,segment['source_end_frame']/fps
-            if left-.0001<=start and end<=right+.0001:
-                starts.append(start+segment['output_start_frame']/fps-left);break
+        times=mapped_word(timeline,start,end)
+        if times:starts.append(times[0])
     for e in events:
         if e.get('sound') in POINT_SOUNDS and e['template']!='expanded-point':
             raise ValueError('叮叮叮/唰仅用于逐项展开讲解，不能用于普通重点事件')
