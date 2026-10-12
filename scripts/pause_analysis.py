@@ -74,6 +74,10 @@ def check_rhythm(a):
     target=job/'previews/rhythm-voice.wav'
     ff(['-i',job/p['active_audio'],'-filter_complex',';'.join(filters),'-map','[out]','-c:a','pcm_s16le',target],job)
     intervals=detect_pauses(target,.12)
+    buffers=t.get('source_buffers',{})
+    for item in intervals:
+        item['source_buffer_boundary']=any(left<=item['start']<item['end']<=right+.001
+            for left,right in (buffers.get('head_output_range',[0,0]),buffers.get('tail_output_range',[0,0])))
     write(job/'previews/rhythm.json',{'timeline_sha256':digest(job/'timeline.json'),
         'voice_sha256':digest(target),'remaining_pauses':[dict(x,reviewed=False,classification='',reason='') for x in intervals],
         'whole_track_reviewed':False,'note':''})

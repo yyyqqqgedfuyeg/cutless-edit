@@ -1,4 +1,5 @@
 from pause_analysis import analyze_audio, verified_low_volume_cut
+from source_buffers import retain_source_buffers
 from difflib import SequenceMatcher
 import math
 from pathlib import Path
@@ -146,8 +147,10 @@ def build_timeline(a):
     timeline={'version':1,'fps':fps,'source_sha256':p['source_sha256'],
         'total_frames':out,'duration':out/fps,'speed':speed,'segments':segments,
         'decisions_sha256':digest(job/'decisions.json')}
+    timeline=retain_source_buffers(timeline,words,total_frames,getattr(a,'source_buffer',.35))
+    out=timeline['total_frames']
     write(job/'timeline.json',timeline)
-    print(f'计划 {len(segments)} 段，{out/fps:.3f}秒；先 preview_cuts.py，再 lock_timeline.py')
+    print(f'计划 {len(timeline["segments"])} 段，{out/fps:.3f}秒；先 preview_cuts.py，再 lock_timeline.py')
 
 
 def preview_cuts(a):
