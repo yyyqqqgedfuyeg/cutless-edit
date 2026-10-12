@@ -216,6 +216,17 @@ agent阅读原稿和全部字幕，核对实际口播、专有名词、数字、
 
 旧任务缺少阿里来源、字幕校对或新增锁定字段时，不允许沿用旧成片路径绕过门槛；在新任务版本完成完整流程，保留旧结果用于追溯。
 
+## 12a. 必做：逐项讲解语义审阅
+
+agent审阅全文后，先准备 [point-review.md](point-review.md) 的判定文件（有独立展开时列出每项；没有时明确判定并说明理由）：
+
+```bash
+"$CUTLESS_PY" "$CUTLESS_SKILL/scripts/review_points.py" --job "$CUTLESS_JOB" \
+  --review /path/point-review.json
+```
+
+缺少这项记录，或实际效果漏项，style/render/verify_export 均拒绝执行。每项独立展开必须有120%画面推进和一个assets音效；字幕阶段不能代替此步骤。用户指定既有剪辑视频补效果时，用 [finish_existing.py 模式](point-review.md)；该独立入口不重建原视频剪辑。
+
 ## 12. 风格：style.py
 
 ```bash

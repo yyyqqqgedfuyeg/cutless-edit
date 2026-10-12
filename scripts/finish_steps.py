@@ -9,7 +9,8 @@ from inline_emphasis import emphasized_text, emphasis_map, script_emphasis, sing
 
 from caption_layout import split_words, fit_caption
 from common import mapped_time, mapped_word, SKILL, check_ranges, digest, dimensions, ff, fingerprint, locked, probe, project, read, srt, stamp, write
-from point_effects import validate_points, zoom_expression, safe_sound_gain
+from point_effects import validate_points, zoom_expression, safe_sound_gain, duck_point_sound
+from point_review import require_review
 from emphasis_review import approved_emphasis
 from caption_review import cue_hash, promote, require_final, review_binding
 from visual_assets import asset_entry, bounce_tags, subtitle_animation, character_events, rounded_background
@@ -180,6 +181,7 @@ def style(a):
     check_ranges(events,timeline['duration'])
     events=sorted(events,key=lambda e:e['start'])
     validate_points(events,job,timeline,read(job/'asr/words.json')['words'])
+    require_review(job,events)
     for i,event in enumerate(events):
         template=presets.get(event['template'])
         if not template:raise ValueError('未知特效模板')
@@ -257,6 +259,7 @@ def render(a):
     job=Path(a.job).resolve();timeline,lock_hash=locked(job);p=project(job)
     require_final(job)
     style_data=read(job/'style/style.json')
+    require_review(job,style_data['events'])
     if style_data['lock_sha256']!=lock_hash:raise ValueError('风格轨属于另一时间轴')
     if read(job/'subtitles/captions.json')['lock_sha256']!=lock_hash:raise ValueError('字幕属于另一时间轴')
     width,height=dimensions(p);fps=timeline['fps']
@@ -319,7 +322,7 @@ def render(a):
             if not bgm:
                 ff(['-f','concat','-safe','0','-i','concat.txt','-vn','-t',timeline['duration'],
                     '-ac','2','-ar','48000','-c:a','pcm_s16le',temp/'mixed.wav'],job,cwd=temp)
-            mixargs=['-i',temp/'mixed.wav'];filters=[];inputs='[0:a]'
+            mixargs=['-i',temp/'mixed.wav'];filters=[];inputs='[0:a]';point_levels=[]
             for i,event in enumerate(sounds,1):
                 sound=event['sound_asset'];source=job/sound['file']
                 delay=round(event['start']*1000);gain=sound['gain_db']
@@ -331,9 +334,11 @@ def render(a):
                     ff(['-i',decoded,'-af',f'atrim=duration={event["end"]-event["start"]},asetpts=PTS-STARTPTS,volume={gain}dB,adelay={delay}|{delay},apad,atrim=duration={timeline["duration"]}',
                         '-t',timeline['duration'],'-c:a','pcm_s16le',aligned],job)
                     source=temp/f'effect-ducked-{i}.wav'
-                    ff(['-i',aligned,'-i',temp/'voice-bed.wav','-filter_complex',
-                        '[0:a][1:a]sidechaincompress=threshold=0.005:ratio=20:attack=5:release=80[a]',
-                        '-map','[a]','-t',timeline['duration'],'-c:a','pcm_s16le',source],job)
+                    sound_duration=float(probe(decoded)['format']['duration'])
+                    levels=duck_point_sound(aligned,temp/'voice-bed.wav',source,timeline['duration'],
+                        event['start'],min(event['end'],event['start']+sound_duration),job)
+                    point_levels.append({'point_index':event['point_index'],
+                        'sequence_group':event['sequence_group'],'gain_db':gain,**levels})
                     # Timing and attenuation are already applied in the finite effect bed.
                     gain=0;delay=0
                 mixargs+=['-i',source]
@@ -344,6 +349,8 @@ def render(a):
                 f'volume={len(sounds)+1},alimiter=limit=0.95:level=false[mixed]')
             ff(mixargs+['-filter_complex',';'.join(filters),'-map','[mixed]','-t',timeline['duration'],
                 '-c:a','pcm_s16le',temp/'with-sfx.wav'],job)
+            write(job/'qc/point-sound-levels.json',{'style_sha256':digest(job/'style/style.json'),
+                'timeline_sha256':digest(job/'timeline.json'),'points':point_levels})
             args=['-f','concat','-safe','0','-i','concat.txt','-i',temp/'with-sfx.wav',
                 '-map','0:v:0','-map','1:a:0']
         args+=['-vf',','.join(vf),'-t',timeline['duration'],'-r',fps,'-c:v','libx264',
@@ -364,6 +371,7 @@ def render(a):
 def verify_export(a):
     job=Path(a.job).resolve();timeline,lock_hash=locked(job);p=project(job)
     require_final(job)
+    require_review(job,read(job/'style/style.json')['events'])
     record=read(job/'output/render.json')
     checks={'lock':record['lock_sha256']==lock_hash,'video_hash':record['video_sha256']==digest(job/'output/final.mp4'),
         'subtitles':record['subtitle_sha256']==digest(job/'subtitles/final.ass'),
