@@ -50,7 +50,9 @@ def validate_points(events, job, timeline, words):
 def zoom_expression(events,fps):
     expression='1'
     for e in events:
-        t=f'on/{fps}';start=e['start'];end=e['end'];amount=e['zoom']-1
+        # Remove mapping roundoff at exact frame boundaries (e.g. 1489/24).
+        # Otherwise lt(t,end) can keep 120% for one frame after a point ends.
+        t=f'on/{fps}';start=e['start'];end=round(e['end']*fps,8)/fps;amount=e['zoom']-1
         if e['template']=='expanded-point':
             progress=f'min(1,max(0,({t}-{start})/{e["zoom_transition_seconds"]}))'
             # Smoothstep to 120%, hold, then reset on the first frame at/after end.
