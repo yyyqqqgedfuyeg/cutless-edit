@@ -11,11 +11,12 @@ def validate_points(events, job, timeline, words):
     groups={}
     clean=lambda text:re.sub(r'[\s【】]','',text)
     script=clean(require_script(job/'script.txt'))
-    starts=[];fps=timeline['fps']
+    starts=[];ends=[];fps=timeline['fps']
     for word in words:
         start,end=word['begin_time']/1000,word['end_time']/1000
         times=mapped_word(timeline,start,end)
-        if times:starts.append(times[0])
+        if times:
+            starts.append(times[0]);ends.append(times[1])
     for e in events:
         if e.get('sound') in POINT_SOUNDS and e['template']!='expanded-point':
             raise ValueError('叮叮叮/唰仅用于逐项展开讲解，不能用于普通重点事件')
@@ -30,14 +31,22 @@ def validate_points(events, job, timeline, words):
         if e['end']-e['start']<1:raise ValueError('一句简短枚举不触发逐项讲解效果')
         if not any(abs(e['start']-start)<=max(.04,1/fps) for start in starts):
             raise ValueError('逐项讲解效果起点需对齐锁定后真实字词起点')
+        zoom_end=e.get('zoom_end')
+        if isinstance(zoom_end,bool) or not isinstance(zoom_end,(int,float)) or not math.isfinite(zoom_end) or not e['start']<zoom_end<=e['end']:
+            raise ValueError('需明确zoom_end：序号及简短标题说完即恢复原比例，不能默认保持整段')
+        intro=clean(e.get('zoom_intro_quote',''))
+        if not intro or not quote.startswith(intro) or intro==quote:
+            raise ValueError('zoom_intro_quote须引用该项开头的序号及简短标题，不含后续展开说明')
+        if not any(abs(zoom_end-end)<=max(.04,1/fps) for end in ends):
+            raise ValueError('zoom_end需对齐引出语末尾的真实字词结束时间')
         # The same reviewed event always drives both the zoom and its cue sound.
         if 'sound' not in e:e['sound']='ding-ding-ding'
         if e.get('sound') not in POINT_SOUNDS:raise ValueError('逐项讲解选择叮叮叮或唰，优先叮叮叮')
         e['zoom']=1.2
-        transition=e.get('zoom_transition_seconds',.25)
-        if isinstance(transition,bool) or not isinstance(transition,(int,float)) or not math.isfinite(transition) or not .08<=transition<=1:
-            raise ValueError('平滑推进时长需0.08–1秒')
-        e['zoom_transition_seconds']=min(transition,(e['end']-e['start'])/2)
+        if zoom_end-e['start']<2/fps:
+            raise ValueError('引出语缩放窗口至少需两帧，以完成推进后立即复位')
+        # The animation fills the spoken intro; no separate 120% holding phase.
+        e['zoom_transition_seconds']=zoom_end-e['start']
         e['sound_gain_db']=e.get('sound_gain_db',-24)
         if not -40<=e['sound_gain_db']<=-18:raise ValueError('强调音效增益需-40至-18dB，并自动避让人声')
         groups.setdefault(group,[]).append(e)
@@ -52,10 +61,13 @@ def zoom_expression(events,fps):
     for e in events:
         # Remove mapping roundoff at exact frame boundaries (e.g. 1489/24).
         # Otherwise lt(t,end) can keep 120% for one frame after a point ends.
-        t=f'on/{fps}';start=e['start'];end=round(e['end']*fps,8)/fps;amount=e['zoom']-1
+        t=f'on/{fps}';start=e['start'];amount=e['zoom']-1
+        end=round((e['zoom_end'] if e['template']=='expanded-point' else e['end'])*fps,8)/fps
         if e['template']=='expanded-point':
-            progress=f'min(1,max(0,({t}-{start})/{e["zoom_transition_seconds"]}))'
-            # Smoothstep to 120%, hold, then reset on the first frame at/after end.
+            last_active_frame=(math.ceil(round(end*fps,8))-1)/fps
+            ramp=max(1/fps,last_active_frame-start)
+            progress=f'min(1,max(0,({t}-{start})/{ramp}))'
+            # Only emphasize the spoken intro; reset before the explanation continues.
             expression+=f'+if(gte({t},{start})*lt({t},{end}),{amount}*({progress})*({progress})*(3-2*({progress})),0)'
         else:
             expression+=f'+if(gte({t},{start})*lt({t},{end}),{amount}*sin(PI*({t}-{start})/{end-start}),0)'

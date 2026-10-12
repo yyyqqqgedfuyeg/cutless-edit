@@ -46,7 +46,10 @@ def require_review(job, events):
     expected = review['points']
     actual = [event for event in events if event['template'] == 'expanded-point']
     keys = ('sequence_group', 'point_index', 'start', 'end', 'script_quote',
-            'expanded_explanation', 'sound', 'sound_gain_db', 'zoom_transition_seconds')
+            'expanded_explanation', 'sound', 'sound_gain_db', 'zoom_transition_seconds',
+            'zoom_end', 'zoom_intro_quote')
+    if any('zoom_end' not in event or not event.get('zoom_intro_quote') for event in expected):
+        raise ValueError('旧逐项记录缺少引出语缩放边界，请重新语义审阅zoom_end及zoom_intro_quote')
     if len(actual) != len(expected) or any(
         any(a.get(key) != b.get(key) for key in keys) for a, b in zip(actual, expected)):
         raise ValueError('逐项讲解事件遗漏或与语义审阅清单不一致')
