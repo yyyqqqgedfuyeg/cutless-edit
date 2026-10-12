@@ -5,6 +5,7 @@ import sys
 import asr_steps
 import edit_steps
 import pause_analysis
+import point_review
 import finish_steps
 import media_steps
 import caption_review
@@ -17,6 +18,7 @@ FUNCTIONS = {
     'preview_subtitles':asr_steps.preview_subtitles,'analyze_edits':edit_steps.analyze_edits,
     'review_edits':edit_steps.review_edits,'build_timeline':edit_steps.build_timeline,
     'check_rhythm':pause_analysis.check_rhythm,
+    'review_points':point_review.review_points,
     'preview_cuts':edit_steps.preview_cuts,'lock_timeline':edit_steps.lock_timeline,
     'subtitles':finish_steps.subtitles,'style':finish_steps.style,
     'render':finish_steps.render,'verify_export':finish_steps.verify_export,
@@ -56,6 +58,7 @@ def main(stage=None):
         parser.add_argument('--user-response',help='用户实际明确审批回复，不能由agent编造')
     if stage=='review_edits':parser.add_argument('--reviews',required=True,help='agent填写的决策JSON列表')
     if stage=='review_subtitles':parser.add_argument('--reviews',required=True,help='逐条引用原稿、确认文字及对齐的校对JSON')
+    if stage=='review_points':parser.add_argument('--review',required=True,help='agent全文语义审阅的逐项讲解判定及完整清单')
     if stage=='build_timeline':parser.add_argument('--speed',type=float,default=1.3,help='锁轨前设置全片速度，默认1.3倍；保留音高')
     if stage=='preview_cuts':parser.add_argument('--context',type=float,default=1.5)
     if stage=='subtitles':

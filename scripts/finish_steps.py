@@ -10,6 +10,7 @@ from inline_emphasis import emphasized_text, emphasis_map, script_emphasis, sing
 from caption_layout import split_words, fit_caption
 from common import mapped_time, mapped_word, SKILL, check_ranges, digest, dimensions, ff, fingerprint, locked, probe, project, read, srt, stamp, write
 from point_effects import validate_points, zoom_expression, safe_sound_gain
+from point_review import require_review
 from emphasis_review import approved_emphasis
 from caption_review import cue_hash, promote, require_final, review_binding
 from visual_assets import asset_entry, bounce_tags, subtitle_animation, character_events, rounded_background
@@ -180,6 +181,7 @@ def style(a):
     check_ranges(events,timeline['duration'])
     events=sorted(events,key=lambda e:e['start'])
     validate_points(events,job,timeline,read(job/'asr/words.json')['words'])
+    require_review(job,events)
     for i,event in enumerate(events):
         template=presets.get(event['template'])
         if not template:raise ValueError('未知特效模板')
@@ -257,6 +259,7 @@ def render(a):
     job=Path(a.job).resolve();timeline,lock_hash=locked(job);p=project(job)
     require_final(job)
     style_data=read(job/'style/style.json')
+    require_review(job,style_data['events'])
     if style_data['lock_sha256']!=lock_hash:raise ValueError('风格轨属于另一时间轴')
     if read(job/'subtitles/captions.json')['lock_sha256']!=lock_hash:raise ValueError('字幕属于另一时间轴')
     width,height=dimensions(p);fps=timeline['fps']
@@ -364,6 +367,7 @@ def render(a):
 def verify_export(a):
     job=Path(a.job).resolve();timeline,lock_hash=locked(job);p=project(job)
     require_final(job)
+    require_review(job,read(job/'style/style.json')['events'])
     record=read(job/'output/render.json')
     checks={'lock':record['lock_sha256']==lock_hash,'video_hash':record['video_sha256']==digest(job/'output/final.mp4'),
         'subtitles':record['subtitle_sha256']==digest(job/'subtitles/final.ass'),
