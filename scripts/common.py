@@ -74,11 +74,15 @@ def require_script(path):
 
 def require_aliyun(job):
     job=Path(job);p=project(job);proof=read(job/'asr/provenance.json')
-    if proof.get('provider')!='aliyun' or not proof.get('task_id') or not proof.get('model'):
+    derived=proof.get('provider')=='derived' and proof.get('mode')=='derived-assembly-cache-v1'
+    if not derived and (proof.get('provider')!='aliyun' or not proof.get('task_id') or not proof.get('model')):
         raise ValueError('必须先获得带阿里模型、云端任务ID及来源记录的真实转写')
     expected={'source_sha256':p['source_sha256'],'audio_sha256':digest(job/p['active_audio']),
         'raw_sha256':digest(job/'asr/transcription.json'),'words_sha256':digest(job/'asr/words.json')}
     if any(proof.get(k)!=v for k,v in expected.items()):raise ValueError('阿里转写来源记录与当前素材/音轨/转写不一致')
+    if derived:
+        from cached_assembly import validate_derived
+        return validate_derived(job,proof)
     return proof
 
 
@@ -109,6 +113,9 @@ def lock_payload(job):
         binding['acoustic_analysis']=digest(job/'qc/pauses.json')
         binding['rhythm_review']=digest(job/'previews/rhythm.json')
         binding['rhythm_voice']=digest(job/'previews/rhythm-voice.wav')
+    if timeline.get('peer_cut_review_policy'):
+        binding['peer_proposal']=digest(job/'qc/cut-review-proposal.json')
+        binding['peer_review']=digest(job/'qc/cut-peer-review.json')
     return fingerprint(binding)
 
 

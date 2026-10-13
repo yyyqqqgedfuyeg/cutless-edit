@@ -34,8 +34,8 @@ def analyze_edits(a):
     acoustic=analyze_audio(job,words)
     for item in acoustic['intervals']:
         add('acoustic_pause',item['start'],item['end'],'drop',
-            item['context']+'；实测低于-35dBFS，可整段剪掉，不保留起尾音')
-        candidates[-1].update(acoustic_id=item['id'],action='drop',reason='用户授权按非常低的音量剪辑：实测低于-35dBFS，整段删除')
+            item['context']+'；实测低于-35dBFS的删除候选，独立审片回查是否截字/截尾音')
+        candidates[-1].update(acoustic_id=item['id'],action='drop',reason='按低音量规则提出删除方案，最终由独立审片核对声音边界')
     for i,word in enumerate(words):
         if word['text'].strip() in {'嗯','呃','额'}:
             start=max(0,word['begin_time']/1000-.05)
@@ -145,6 +145,7 @@ def build_timeline(a):
         cursor=max(cursor,right)
     if not segments:raise ValueError('全部素材被删除')
     timeline={'version':1,'fps':fps,'source_sha256':p['source_sha256'],
+        'peer_cut_review_policy':'two-agent-cut-review-v1',
         'total_frames':out,'duration':out/fps,'speed':speed,'segments':segments,
         'decisions_sha256':digest(job/'decisions.json')}
     timeline=retain_source_buffers(timeline,words,total_frames,getattr(a,'source_buffer',.35))
@@ -155,6 +156,7 @@ def build_timeline(a):
 
 def preview_cuts(a):
     job=Path(a.job).resolve();p=project(job)
+    (job/'previews').mkdir(parents=True,exist_ok=True)
     timeline=read(job/'timeline.json');fps=timeline['fps']
     if timeline['decisions_sha256']!=digest(job/'decisions.json'):
         raise ValueError('决策已更新，请重建时间轴')
@@ -191,6 +193,8 @@ def lock_timeline(a):
     unlocked(job)
     review=read(job/'previews/review.json')
     timeline=read(job/'timeline.json')
+    from peer_cut_review import require_peer_review
+    require_peer_review(job)
     if review['timeline_sha256']!=digest(job/'timeline.json') or review['decisions_sha256']!=digest(job/'decisions.json'):
         raise ValueError('预览对应旧版本，必须重新生成')
     if not review.get('whole_track_reviewed') or not review.get('note','').strip():
@@ -210,8 +214,10 @@ def lock_timeline(a):
         if not rhythm.get('whole_track_reviewed') or not rhythm.get('note','').strip():
             raise ValueError('未完成变速后全片纯人声节奏复核')
         for item in rhythm['remaining_pauses']:
-            if item.get('reviewed') is not True or item.get('classification') not in {'section','expressive','false_positive'} or not item.get('reason','').strip():
+            if item.get('reviewed') is not True or item.get('classification') not in {'section','expressive','false_positive','peer_preserved'} or not item.get('reason','').strip():
                 raise ValueError('剩余长停顿需说明保留作用；普通卡顿必须重剪后重新检查')
+            if item.get('classification')=='peer_preserved' and not timeline.get('peer_adjustments'):
+                raise ValueError('peer_preserved须对应独立审片已要求的回帧，不保留普通卡顿')
     write(job/'timeline.lock.json',{'sha256':lock_payload(job),'review_sha256':digest(job/'previews/review.json'),
         'note':review['note']})
     print('时间轴已锁定；后续字幕与风格处理不得改变剪辑时序')

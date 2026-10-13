@@ -10,6 +10,8 @@ import finish_steps
 import media_steps
 import caption_review
 import emphasis_review
+import peer_cut_review
+import cached_assembly
 
 
 FUNCTIONS = {
@@ -24,6 +26,10 @@ FUNCTIONS = {
     'render':finish_steps.render,'verify_export':finish_steps.verify_export,
     'review_subtitles':caption_review.review_subtitles,
     'review_emphasis':emphasis_review.emphasis_review}
+FUNCTIONS.update(prepare_cut_review=peer_cut_review.prepare_cut_review,
+                 review_cut_plan=peer_cut_review.review_cut_plan,
+                 apply_peer_adjustments=peer_cut_review.apply_peer_adjustments,
+                 assemble_cached_sources=cached_assembly.assemble_cached_sources)
 
 
 def main(stage=None):
@@ -42,6 +48,10 @@ def main(stage=None):
         parser.add_argument('--layout',choices=['auto','portrait','landscape'],default='auto')
         parser.add_argument('--rotate',choices=['auto','clock','cclock'],default='auto',
             help='默认尊重旋转元数据；clock/cclock为额外90度纠正')
+    if stage=='assemble_cached_sources':
+        parser.add_argument('--plan',required=True,help='fps和parts：cache原片任务路径、start_frame/end_frame')
+        parser.add_argument('--script',required=True)
+        parser.add_argument('--title',required=True)
     if stage=='denoise':
         parser.add_argument('--mode',choices=['light','moderate','accept','bypass'],required=True)
         parser.add_argument('--reason',required=True)
@@ -59,6 +69,15 @@ def main(stage=None):
     if stage=='review_edits':parser.add_argument('--reviews',required=True,help='agent填写的决策JSON列表')
     if stage=='review_subtitles':parser.add_argument('--reviews',required=True,help='逐条引用原稿、确认文字及对齐的校对JSON')
     if stage=='review_points':parser.add_argument('--review',required=True,help='agent全文语义审阅的逐项讲解判定及完整清单')
+    if stage=='prepare_cut_review':
+        parser.add_argument('--planner',required=True,help='实际Agent A身份')
+        parser.add_argument('--phase',choices=['proposal','export'],default='proposal')
+        parser.add_argument('--context',type=float,default=.6,help='切口前后各约0.6秒，按需调整')
+        parser.add_argument('--dense',action='store_true',help='疑难切口提取窗口内每一帧')
+    if stage=='review_cut_plan':
+        parser.add_argument('--reviews',required=True)
+        parser.add_argument('--phase',choices=['proposal','export'],default='proposal')
+    if stage=='apply_peer_adjustments':parser.add_argument('--changes',required=True)
     if stage=='build_timeline':
         parser.add_argument('--speed',type=float,default=1.3,help='锁轨前设置正文速度，默认1.3倍；保留音高')
         parser.add_argument('--source-buffer',type=float,default=.35,help='首尾从原片保留的缓冲秒数，默认0.35；原速，0关闭')

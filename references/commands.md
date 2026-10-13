@@ -167,6 +167,8 @@ apad=pad_dur=0.2,afftdn=nr=6:nf=-50:tn=1,atrim=duration=DURATION,asetpts=PTS-STA
 
 ## 10. 锁定：lock_timeline.py
 
+新增A/B串行审片：A运行 `prepare_cut_review.py --job ... --planner 实际A身份` 提交剪辑方案与接触表，B实际看有序画面和声音证据，运行 `review_cut_plan.py --job ... --reviews b-reviews.json`。需要少量回帧时由A执行 `apply_peer_adjustments.py --job ... --changes ...`，重新提方案并让B复核。默认窗口0.6秒，切点附近每帧保留；疑难项 `--dense` 提取全部帧。正常短视频跳切允许，不使用固定动作否决阈值。详见 [two-agent-review.md](two-agent-review.md)。
+
 ```bash
 "$CUTLESS_PY" "$CUTLESS_SKILL/scripts/lock_timeline.py" --job "$CUTLESS_JOB"
 ```
