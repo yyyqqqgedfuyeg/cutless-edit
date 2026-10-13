@@ -10,7 +10,7 @@ import statistics
 import subprocess
 import sys
 
-from common import SKILL, digest, exe, ff, probe, project, read, require_script, run, unlocked, verify_source, write
+from common import SKILL, digest, exe, ff, probe, project, read, require_aliyun, require_script, run, unlocked, verify_source, write
 
 
 def doctor(a):
@@ -145,9 +145,11 @@ def audio_qc(a):
 def denoise(a):
     job = Path(a.job).resolve()
     unlocked(job)
-    if (job / 'asr/provenance.json').exists():
-        raise ValueError('已有转写。降噪必须在转写前完成；请新建任务版本')
     p = project(job)
+    if (job / 'asr/provenance.json').exists():
+        if a.mode!='bypass' or p['active_audio']!='audio/original.wav':
+            raise ValueError('已有转写。改变音轨必须在转写前完成；请新建任务版本')
+        require_aliyun(job)
     if not (job/'qc/audio.json').exists():
         raise ValueError('先执行 audio_qc.py')
     if not -80 <= a.noise_floor <= -20 or a.sample_start < 0:

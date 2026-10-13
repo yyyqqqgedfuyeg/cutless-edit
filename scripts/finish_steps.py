@@ -384,6 +384,16 @@ def verify_export(a):
     checks['aspect']=abs(v['width']/v['height']-(9/16 if p['layout']=='portrait' else 16/9))<.002
     ff(['-v','error','-i',job/'output/final.mp4','-f','null','-'],job)
     checks['full_decode']=True
+    if timeline.get('peer_cut_review_policy'):
+        from peer_cut_review import locations,prepare_cut_review,require_peer_review,validate_proposal
+        from argparse import Namespace
+        pp,_=locations(job,'export')
+        previous=read(job/'qc/cut-review-proposal.json')
+        if pp.exists():
+            try:validate_proposal(job,read(pp))
+            except ValueError:prepare_cut_review(Namespace(job=str(job),phase='export',planner=previous['planner'],context=previous['context_seconds'],dense=False))
+        else:prepare_cut_review(Namespace(job=str(job),phase='export',planner=previous['planner'],context=previous['context_seconds'],dense=False))
+        require_peer_review(job,'export');checks['independent_cut_review']=True
     for i,when in enumerate([min(1,timeline['duration']/4),timeline['duration']/2,max(0,timeline['duration']-1)]):
         ff(['-ss',when,'-i',job/'output/final.mp4','-frames:v','1',job/f'output/check-{i+1}.jpg'],job)
     write(job/'output/verification.json',{'checks':checks,'passed':all(checks.values()),

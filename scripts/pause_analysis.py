@@ -72,6 +72,7 @@ def check_rhythm(a):
         labels.append(f'[a{i}]')
     filters.append(''.join(labels)+f'concat=n={len(labels)}:v=0:a=1[out]')
     target=job/'previews/rhythm-voice.wav'
+    target.parent.mkdir(parents=True,exist_ok=True)
     ff(['-i',job/p['active_audio'],'-filter_complex',';'.join(filters),'-map','[out]','-c:a','pcm_s16le',target],job)
     intervals=detect_pauses(target,.12)
     buffers=t.get('source_buffers',{})
